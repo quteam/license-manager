@@ -1,0 +1,22 @@
+{
+  "name": "license-manager",
+  "private": true,
+  "license": "MIT",
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "mkdir -p admin/dist && pnpm --parallel --stream --filter @license-manager/worker --filter @license-manager/admin dev",
+    "build": "pnpm --filter @license-manager/admin build && pnpm --filter @license-manager/worker build",
+    "build:production": "pnpm --filter @license-manager/admin build && pnpm --filter @license-manager/worker build:production",
+    "type-check": "pnpm --filter @license-manager/worker type-check && pnpm --filter @license-manager/admin type-check",
+    "test": "pnpm --filter @license-manager/worker test",
+    "deploy": "pnpm build:production && pnpm --filter @license-manager/worker deploy",
+    "db:migrate:local": "pnpm --filter @license-manager/worker db:migrate:local",
+    "db:migrate:remote": "pnpm --filter @license-manager/worker db:migrate:remote"
+  },
+  "engines": {
+    "node": ">=20.11.0",
+    "pnpm": ">=11.7.0"
+  },
+  "packageManager": "pnpm@11.7.0"
+}

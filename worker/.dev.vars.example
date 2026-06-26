@@ -1,0 +1,5 @@
+JWT_SECRET="replace-with-a-long-random-secret"
+CODE_HMAC_SECRET="replace-with-a-long-random-secret"
+APP_SECRET_HMAC_SECRET="replace-with-a-long-random-secret"
+DEVICE_HMAC_SECRET="replace-with-a-long-random-secret"
+ADMIN_BOOTSTRAP_PASSWORD="change-me-before-use"

@@ -1,0 +1,26 @@
+{
+  "name": "@license-manager/worker",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "build": "wrangler deploy --dry-run --outdir dist",
+    "build:production": "wrangler deploy --config wrangler.production.toml --env production --dry-run --outdir dist",
+    "deploy": "wrangler deploy --config wrangler.production.toml --env production",
+    "type-check": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "db:migrate:local": "wrangler d1 migrations apply license_manager --local",
+    "db:migrate:remote": "wrangler d1 migrations apply license_manager --remote --config wrangler.production.toml --env production",
+    "db:create": "wrangler d1 create license_manager"
+  },
+  "dependencies": {
+    "hono": "^4.12.25"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20260616.1",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.9",
+    "wrangler": "^4.100.0"
+  }
+}

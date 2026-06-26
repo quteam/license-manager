@@ -1,0 +1,9 @@
+packages:
+  - "worker"
+  - "admin"
+allowBuilds:
+  esbuild: true
+  sharp: true
+  workerd: true
+minimumReleaseAgeExclude:
+  - '@cloudflare/workers-types@4.20260616.1'

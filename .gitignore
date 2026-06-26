@@ -1,0 +1,10 @@
+node_modules
+.wrangler
+.dev.vars
+wrangler.production.toml
+dist
+admin/dist
+worker/dist
+coverage
+*.local
+*.log

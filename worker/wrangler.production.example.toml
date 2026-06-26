@@ -1,0 +1,27 @@
+name = "license-manager"
+main = "src/index.ts"
+compatibility_date = "2026-06-16"
+compatibility_flags = ["nodejs_compat"]
+
+[assets]
+directory = "../admin/dist"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+run_worker_first = ["/api/*"]
+
+[env.production]
+name = "license-manager"
+workers_dev = false
+preview_urls = true
+routes = [
+  { pattern = "license.example.com", zone_name = "example.com", custom_domain = true, enabled = true, previews_enabled = false }
+]
+
+[env.production.vars]
+ADMIN_BOOTSTRAP_USERNAME = "admin"
+
+[[env.production.d1_databases]]
+binding = "DB"
+database_name = "license_manager"
+database_id = "00000000-0000-0000-0000-000000000000"
+migrations_dir = "../migrations"
