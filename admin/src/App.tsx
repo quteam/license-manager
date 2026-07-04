@@ -1,7 +1,9 @@
 import { App as AntApp, ConfigProvider } from "antd";
+import enUS from "antd/locale/en_US";
 import zhCN from "antd/locale/zh_CN";
 import { lazy, Suspense, useEffect, useState } from "react";
 import { clearToken, getToken, setToken, apiRequest } from "./api";
+import { LanguageProvider, useI18n } from "./i18n";
 import type { AdminUser } from "./types";
 
 const Login = lazy(() => import("./components/Login").then((module) => ({ default: module.Login })));
@@ -16,6 +18,15 @@ function AppLoading() {
 }
 
 export function App() {
+  return (
+    <LanguageProvider>
+      <LocalizedApp />
+    </LanguageProvider>
+  );
+}
+
+function LocalizedApp() {
+  const { language } = useI18n();
   const [token, updateToken] = useState<string | null>(() => getToken());
   const [admin, setAdmin] = useState<AdminUser | null>(null);
 
@@ -32,7 +43,7 @@ export function App() {
   }, [token]);
 
   return (
-    <ConfigProvider locale={zhCN}>
+    <ConfigProvider locale={language === "zh" ? zhCN : enUS}>
       <AntApp>
         {token ? (
           <Suspense fallback={<AppLoading />}>

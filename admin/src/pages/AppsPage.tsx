@@ -4,14 +4,16 @@ import { ProForm, ProFormSelect, ProFormText, ProFormTextArea, ProTable } from "
 import { App as AntApp, Button, Form, Input, Modal, Space, Tooltip, Typography } from "antd";
 import { useRef, useState } from "react";
 import { apiRequest } from "../api";
-import { appPlatformOptions, formatAppPlatform } from "../shared/appPlatform";
+import { formatAppPlatform, getAppPlatformOptions } from "../shared/appPlatform";
 import { CodeBlock } from "../shared/CodeBlock";
-import { APP_STATUS, APP_STATUS_VALUE_ENUM } from "../shared/constants";
+import { APP_STATUS, getAppStatusValueEnum } from "../shared/constants";
 import { formatDate } from "../shared/format";
+import { useI18n } from "../i18n";
 import type { AppItem } from "../types";
 
 export function AppsPage() {
   const { message, modal } = AntApp.useApp();
+  const { t } = useI18n();
   const [createForm] = Form.useForm();
   const [editForm] = Form.useForm();
   const [createOpen, setCreateOpen] = useState(false);
@@ -23,39 +25,39 @@ export function AppsPage() {
 
   const columns: ProColumns<AppItem>[] = [
     {
-      title: "序号",
+      title: t("common.index"),
       valueType: "index",
       width: 64,
       search: false
     },
     {
-      title: "应用 ID",
+      title: t("apps.appId"),
       dataIndex: "app_id",
       width: 220,
-      render: (_, row) => <CopyableInlineCode value={row.app_id} label="应用 ID" />
+      render: (_, row) => <CopyableInlineCode value={row.app_id} label={t("apps.appId")} />
     },
-    { title: "名称", dataIndex: "name" },
+    { title: t("apps.name"), dataIndex: "name" },
     {
-      title: "描述",
+      title: t("apps.description"),
       dataIndex: "description",
       ellipsis: true,
       renderText: (text: string | null) => text || "-"
     },
     {
-      title: "平台",
+      title: t("apps.platform"),
       dataIndex: "platform",
       width: 120,
-      renderText: formatAppPlatform
+      renderText: (platform) => formatAppPlatform(platform, t)
     },
     {
-      title: "状态",
+      title: t("common.status"),
       dataIndex: "status",
       width: 100,
-      valueEnum: APP_STATUS_VALUE_ENUM
+      valueEnum: getAppStatusValueEnum(t)
     },
-    { title: "创建时间", dataIndex: "created_at", width: 170, search: false, renderText: formatDate },
+    { title: t("apps.createdAt"), dataIndex: "created_at", width: 170, search: false, renderText: formatDate },
     {
-      title: "操作",
+      title: t("common.action"),
       valueType: "option",
       width: 160,
       fixed: "right",
@@ -70,33 +72,33 @@ export function AppsPage() {
           }}
           onRotateSecret={() => {
             modal.confirm({
-              title: "更换应用密钥",
-              content: `确认更换应用“${row.name}”的密钥？旧密钥会立即失效，客户端必须更新为新密钥。`,
-              okText: "更换",
+              title: t("apps.rotateSecret"),
+              content: t("apps.rotateSecretConfirm", { name: row.name }),
+              okText: t("apps.rotate"),
               okButtonProps: { danger: true },
-              cancelText: "取消",
+              cancelText: t("common.cancel"),
               onOk: async () => {
                 const data = await apiRequest<{ app: AppItem; app_secret: string }>(`/api/admin/apps/${row.app_id}/secret`, {
                   method: "PATCH"
                 });
                 setSecret(data.app_secret);
                 actionRef.current?.reload();
-                message.success("已更换密钥");
+                message.success(t("common.changedSecret"));
               }
             });
           }}
           onToggleStatus={() => {
             const disabled = row.status === APP_STATUS.ACTIVE;
             modal.confirm({
-              title: disabled ? "禁用应用" : "启用应用",
-              content: disabled ? "禁用后客户端激活和校验会立即失败。" : "启用后客户端可继续激活和校验。",
-              okText: disabled ? "禁用" : "启用",
+              title: disabled ? t("apps.disableApp") : t("apps.enableApp"),
+              content: disabled ? t("apps.disableAppConfirm") : t("apps.enableAppConfirm"),
+              okText: disabled ? t("common.disable") : t("common.enable"),
               okButtonProps: {
                 style: disabled
                   ? { backgroundColor: "#d48806", borderColor: "#d48806" }
                   : { backgroundColor: "#389e0d", borderColor: "#389e0d" }
               },
-              cancelText: "取消",
+              cancelText: t("common.cancel"),
               onOk: async () => {
                 await apiRequest(`/api/admin/apps/${row.app_id}/status`, {
                   method: "PATCH",
@@ -108,15 +110,15 @@ export function AppsPage() {
           }}
           onDelete={() => {
             modal.confirm({
-              title: "删除应用",
-              content: `确认删除应用“${row.name}”？已有激活码、批次或日志的应用不能删除。`,
-              okText: "删除",
+              title: t("apps.deleteApp"),
+              content: t("apps.deleteAppConfirm", { name: row.name }),
+              okText: t("common.delete"),
               okButtonProps: { danger: true },
-              cancelText: "取消",
+              cancelText: t("common.cancel"),
               onOk: async () => {
                 await apiRequest(`/api/admin/apps/${row.app_id}`, { method: "DELETE" });
                 actionRef.current?.reload();
-                message.success("已删除");
+                message.success(t("common.deleted"));
               }
             });
           }}
@@ -131,7 +133,7 @@ export function AppsPage() {
         rowKey="id"
         actionRef={actionRef}
         columns={columns}
-        headerTitle="应用列表"
+        headerTitle={t("apps.list")}
         cardBordered
         bordered
         scroll={{ x: 1080 }}
@@ -139,7 +141,7 @@ export function AppsPage() {
         pagination={false}
         toolBarRender={() => [
           <Button key="create" type="primary" icon={<PlusOutlined />} onClick={() => setCreateOpen(true)}>
-            新增应用
+            {t("apps.createApp")}
           </Button>
         ]}
         options={{ density: true, reload: true, setting: true }}
@@ -148,18 +150,18 @@ export function AppsPage() {
             const data = await apiRequest<{ items: AppItem[] }>("/api/admin/apps");
             return { data: data.items, success: true };
           } catch (error) {
-            message.error(error instanceof Error ? error.message : "加载失败");
+            message.error(error instanceof Error ? error.message : t("common.loadingFailed"));
             return { data: [], success: false };
           }
         }}
       />
 
-      <Modal title="新增应用" open={createOpen} footer={null} destroyOnHidden onCancel={() => setCreateOpen(false)}>
+      <Modal title={t("apps.createApp")} open={createOpen} footer={null} destroyOnHidden onCancel={() => setCreateOpen(false)}>
         <ProForm
           form={createForm}
           layout="vertical"
           submitter={{
-            searchConfig: { submitText: "创建应用" },
+            searchConfig: { submitText: t("apps.createSubmit") },
             submitButtonProps: { icon: <PlusOutlined /> },
             resetButtonProps: false
           }}
@@ -173,10 +175,10 @@ export function AppsPage() {
               setCreateOpen(false);
               createForm.resetFields();
               actionRef.current?.reload();
-              message.success("创建成功");
+              message.success(t("common.createSucceeded"));
               return true;
             } catch (error) {
-              message.error(error instanceof Error ? error.message : "创建失败");
+              message.error(error instanceof Error ? error.message : t("common.createFailed"));
               return false;
             }
           }}
@@ -186,7 +188,7 @@ export function AppsPage() {
       </Modal>
 
       <Modal
-        title="修改应用"
+        title={t("apps.editApp")}
         open={editOpen}
         footer={null}
         destroyOnHidden
@@ -199,7 +201,7 @@ export function AppsPage() {
           form={editForm}
           layout="vertical"
           submitter={{
-            searchConfig: { submitText: "保存修改" },
+            searchConfig: { submitText: t("apps.editSubmit") },
             resetButtonProps: false
           }}
           onFinish={async (values) => {
@@ -215,10 +217,10 @@ export function AppsPage() {
               setEditingApp(null);
               editForm.resetFields();
               actionRef.current?.reload();
-              message.success("修改成功");
+              message.success(t("common.editSucceeded"));
               return true;
             } catch (error) {
-              message.error(error instanceof Error ? error.message : "修改失败");
+              message.error(error instanceof Error ? error.message : t("common.editFailed"));
               return false;
             }
           }}
@@ -227,25 +229,25 @@ export function AppsPage() {
         </ProForm>
       </Modal>
 
-      <Modal title="应用密钥" open={Boolean(secret)} footer={null} destroyOnHidden onCancel={() => setSecret(null)}>
+      <Modal title={t("apps.appSecret")} open={Boolean(secret)} footer={null} destroyOnHidden onCancel={() => setSecret(null)}>
         {secret && (
           <Space direction="vertical" className="w-full" size="middle">
-            <Typography.Text type="secondary">应用密钥只在创建后显示一次，请及时保存。</Typography.Text>
+            <Typography.Text type="secondary">{t("apps.secretOnce")}</Typography.Text>
             <CopyableSecret value={secret} />
             <Button type="primary" onClick={() => setSecret(null)}>
-              我已保存
+              {t("common.saved")}
             </Button>
           </Space>
         )}
       </Modal>
 
-      <Modal title="使用说明" open={Boolean(usageApp)} footer={null} width={760} destroyOnHidden onCancel={() => setUsageApp(null)}>
+      <Modal title={t("apps.usage")} open={Boolean(usageApp)} footer={null} width={760} destroyOnHidden onCancel={() => setUsageApp(null)}>
         {usageApp && (
           <Space direction="vertical" className="w-full" size="middle">
             <Typography.Text type="secondary">
-              当前应用 ID 为 <Typography.Text code>{usageApp.app_id}</Typography.Text>，请将创建应用时保存的 app_secret 填入代码中的占位符。
+              {t("apps.usageText", { appId: usageApp.app_id })}
             </Typography.Text>
-            <CodeBlock value={createUsageCode(usageApp.app_id, window.location.origin)} language="javascript" />
+            <CodeBlock value={createUsageCode(usageApp.app_id, window.location.origin, t)} language="javascript" />
           </Space>
         )}
       </Modal>
@@ -254,16 +256,18 @@ export function AppsPage() {
 }
 
 function AppFormFields() {
+  const { t } = useI18n();
+
   return (
     <>
-      <ProFormText name="name" label="应用名称" rules={[{ required: true, message: "请输入应用名称" }]} />
+      <ProFormText name="name" label={t("apps.appName")} rules={[{ required: true, message: t("apps.appNameRequired") }]} />
       <ProFormSelect
         name="platform"
-        label="平台"
-        options={appPlatformOptions}
-        rules={[{ required: true, message: "请选择平台" }]}
+        label={t("apps.platform")}
+        options={getAppPlatformOptions(t)}
+        rules={[{ required: true, message: t("apps.platformRequired") }]}
       />
-      <ProFormTextArea name="description" label="应用描述" fieldProps={{ rows: 3, maxLength: 300, showCount: true }} />
+      <ProFormTextArea name="description" label={t("apps.appDescription")} fieldProps={{ rows: 3, maxLength: 300, showCount: true }} />
     </>
   );
 }
@@ -283,18 +287,19 @@ function AppActionButtons({
   onToggleStatus: () => void;
   onDelete: () => void;
 }) {
-  const toggleTitle = app.status === APP_STATUS.ACTIVE ? "禁用应用" : "启用应用";
+  const { t } = useI18n();
+  const toggleTitle = app.status === APP_STATUS.ACTIVE ? t("apps.disableApp") : t("apps.enableApp");
 
   return (
     <Space size={4}>
-      <Tooltip title="使用说明">
-        <Button size="small" type="link" icon={<QuestionCircleOutlined />} aria-label="使用说明" onClick={onUsage} />
+      <Tooltip title={t("apps.usage")}>
+        <Button size="small" type="link" icon={<QuestionCircleOutlined />} aria-label={t("apps.usage")} onClick={onUsage} />
       </Tooltip>
-      <Tooltip title="更换应用密钥">
-        <Button size="small" type="link" icon={<KeyOutlined />} aria-label="更换应用密钥" onClick={onRotateSecret} />
+      <Tooltip title={t("apps.rotateSecret")}>
+        <Button size="small" type="link" icon={<KeyOutlined />} aria-label={t("apps.rotateSecret")} onClick={onRotateSecret} />
       </Tooltip>
-      <Tooltip title="修改应用">
-        <Button size="small" type="link" icon={<EditOutlined />} aria-label="修改应用" onClick={onEdit} />
+      <Tooltip title={t("apps.editApp")}>
+        <Button size="small" type="link" icon={<EditOutlined />} aria-label={t("apps.editApp")} onClick={onEdit} />
       </Tooltip>
       <Tooltip title={toggleTitle}>
         <Button
@@ -306,8 +311,8 @@ function AppActionButtons({
           onClick={onToggleStatus}
         />
       </Tooltip>
-      <Tooltip title="删除应用">
-        <Button size="small" type="link" danger icon={<DeleteOutlined />} aria-label="删除应用" onClick={onDelete} />
+      <Tooltip title={t("apps.deleteApp")}>
+        <Button size="small" type="link" danger icon={<DeleteOutlined />} aria-label={t("apps.deleteApp")} onClick={onDelete} />
       </Tooltip>
     </Space>
   );
@@ -315,6 +320,7 @@ function AppActionButtons({
 
 function CopyableInlineCode({ value, label }: { value: string; label: string }) {
   const { message } = AntApp.useApp();
+  const { t } = useI18n();
 
   return (
     <Space size={4}>
@@ -325,11 +331,11 @@ function CopyableInlineCode({ value, label }: { value: string; label: string }) 
         size="small"
         type="text"
         icon={<CopyOutlined />}
-        aria-label={`复制${label}`}
-        title={`复制${label}`}
+        aria-label={t("common.copiedLabel", { label })}
+        title={t("common.copy")}
         onClick={async () => {
           await navigator.clipboard.writeText(value);
-          message.success(`已复制${label}`);
+          message.success(t("common.copiedLabel", { label }));
         }}
       />
     </Space>
@@ -338,20 +344,21 @@ function CopyableInlineCode({ value, label }: { value: string; label: string }) 
 
 function CopyableSecret({ value }: { value: string }) {
   const { message } = AntApp.useApp();
+  const { t } = useI18n();
 
   return (
     <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
       <div className="mb-2 flex items-center justify-between gap-3">
-        <Typography.Text type="secondary">应用密钥</Typography.Text>
+        <Typography.Text type="secondary">{t("apps.appSecret")}</Typography.Text>
         <Button
           size="small"
           type="text"
           icon={<CopyOutlined />}
-          aria-label="复制应用密钥"
-          title="复制应用密钥"
+          aria-label={t("apps.copyAppSecret")}
+          title={t("apps.copyAppSecret")}
           onClick={async () => {
             await navigator.clipboard.writeText(value);
-            message.success("已复制应用密钥");
+            message.success(t("common.copiedLabel", { label: t("apps.appSecret") }));
           }}
         />
       </div>
@@ -362,9 +369,9 @@ function CopyableSecret({ value }: { value: string }) {
   );
 }
 
-function createUsageCode(appId: string, apiBaseUrl: string) {
+function createUsageCode(appId: string, apiBaseUrl: string, t: (key: string) => string) {
   return `const APP_ID = "${escapeJsString(appId)}";
-const APP_SECRET = "替换为创建应用时保存的 app_secret";
+const APP_SECRET = "${escapeJsString(t("docs.secretPlaceholder"))}";
 const API_BASE_URL = "${escapeJsString(apiBaseUrl)}";
 
 async function requestLicense(path, body) {
@@ -379,7 +386,7 @@ async function requestLicense(path, body) {
   });
   const payload = await response.json();
   if (!payload.ok) {
-    throw new Error(payload.error?.message || "请求失败");
+    throw new Error(payload.error?.message || "${escapeJsString(t("docs.errorFallback"))}");
   }
   return payload.data;
 }

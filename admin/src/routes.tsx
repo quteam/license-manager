@@ -27,48 +27,51 @@ type AdminRoute = MenuDataItem & {
   element: ReactNode;
 };
 
+type Translate = (key: string) => string;
+
 export const defaultPage: PageKey = "dashboard";
 
-export const adminPageRoutes: AdminRoute[] = [
+export function getAdminPageRoutes(t: Translate): AdminRoute[] {
+  return [
   {
     key: "dashboard",
     path: "/dashboard",
-    name: "仪表盘",
+    name: t("nav.dashboard"),
     icon: <DashboardOutlined />,
     element: <DashboardPage />,
   },
   {
     key: "apps",
     path: "/apps",
-    name: "应用管理",
+    name: t("nav.apps"),
     icon: <AppstoreOutlined />,
     element: <AppsPage />
   },
   {
     key: "codes",
     path: "/codes",
-    name: "激活码",
+    name: t("nav.codes"),
     icon: <KeyOutlined />,
     element: <CodesPage />
   },
   {
     key: "generate",
     path: "/generate",
-    name: "生成激活码",
+    name: t("nav.generate"),
     icon: <SignatureOutlined />,
     element: <GeneratePage />
   },
   {
     key: "logs",
     path: "/logs",
-    name: "操作日志",
+    name: t("nav.logs"),
     icon: <AuditOutlined />,
     element: <LogsPage />
   },
   {
     key: "docs",
     path: "/docs",
-    name: "接入文档",
+    name: t("nav.docs"),
     icon: <FileTextOutlined />,
     element: <DocsPage />
   },
@@ -79,38 +82,50 @@ export const adminPageRoutes: AdminRoute[] = [
     icon: <PlayCircleOutlined />,
     element: <PlaygroundPage />
   }
+  ];
+}
+
+const routePaths: Array<[string, PageKey]> = [
+  ["/dashboard", "dashboard"],
+  ["/apps", "apps"],
+  ["/codes", "codes"],
+  ["/generate", "generate"],
+  ["/logs", "logs"],
+  ["/docs", "docs"],
+  ["/playground", "playground"]
 ];
 
-export const routeMap = Object.fromEntries(adminPageRoutes.map((route) => [route.key, route])) as Record<
-  PageKey,
-  AdminRoute
->;
+export const pathToPage = new Map<string, PageKey>(routePaths);
 
-export const pathToPage = new Map<string, PageKey>(adminPageRoutes.map((route) => [route.path, route.key]));
+export function getRouteMap(routes: AdminRoute[]) {
+  return Object.fromEntries(routes.map((route) => [route.key, route])) as Record<PageKey, AdminRoute>;
+}
 
-const menuRouteMap = Object.fromEntries(adminPageRoutes.map(({ element: _element, ...route }) => [route.key, route])) as Record<
-  PageKey,
-  MenuDataItem
->;
+export function getMenuRoutes(routes: AdminRoute[], t: Translate): MenuDataItem[] {
+  const menuRouteMap = Object.fromEntries(routes.map(({ element: _element, ...route }) => [route.key, route])) as Record<
+    PageKey,
+    MenuDataItem
+  >;
 
-export const menuRoutes: MenuDataItem[] = [
-  menuRouteMap.dashboard,
-  {
-    key: "license",
-    path: "/license",
-    name: "授权管理",
-    children: [menuRouteMap.apps, menuRouteMap.codes, menuRouteMap.generate]
-  },
-  {
-    key: "audit",
-    path: "/audit",
-    name: "审计管理",
-    children: [menuRouteMap.logs]
-  },
-  {
-    key: "support",
-    path: "/support",
-    name: "开发支持",
-    children: [menuRouteMap.docs, menuRouteMap.playground]
-  }
-];
+  return [
+    menuRouteMap.dashboard,
+    {
+      key: "license",
+      path: "/license",
+      name: t("nav.license"),
+      children: [menuRouteMap.apps, menuRouteMap.codes, menuRouteMap.generate]
+    },
+    {
+      key: "audit",
+      path: "/audit",
+      name: t("nav.audit"),
+      children: [menuRouteMap.logs]
+    },
+    {
+      key: "support",
+      path: "/support",
+      name: t("nav.support"),
+      children: [menuRouteMap.docs, menuRouteMap.playground]
+    }
+  ];
+}

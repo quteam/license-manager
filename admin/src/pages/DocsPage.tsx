@@ -13,23 +13,28 @@ import { formatAppOptionLabel } from "../shared/appPlatform";
 import { CodeBlock } from "../shared/CodeBlock";
 import {
   type ClientFlowStep,
-  clientActions,
-  clientActionFlows,
   createCurlDemo,
   createHtmlDemo,
   createJavaScriptDemo,
   createRequestPayload,
-  responseExample
+  createResponseExample,
+  getClientActionFlows,
+  getClientActions
 } from "../shared/licenseDocs";
+import { useI18n } from "../i18n";
 
 export function DocsPage() {
+  const { t } = useI18n();
   const { apps } = useCatalogs();
   const [selectedAppId, setSelectedAppId] = useState<string>(() => apps[0]?.app_id ?? "app_xxx");
   const apiBaseUrl = window.location.origin;
   const selectedApp = apps.find((app) => app.app_id === selectedAppId);
-  const jsDemo = useMemo(() => createJavaScriptDemo(selectedAppId, apiBaseUrl), [apiBaseUrl, selectedAppId]);
-  const curlDemo = useMemo(() => createCurlDemo("activate", selectedAppId, apiBaseUrl), [apiBaseUrl, selectedAppId]);
-  const htmlDemo = useMemo(() => createHtmlDemo(selectedAppId, apiBaseUrl), [apiBaseUrl, selectedAppId]);
+  const clientActions = useMemo(() => getClientActions(t), [t]);
+  const clientActionFlows = useMemo(() => getClientActionFlows(t), [t]);
+  const jsDemo = useMemo(() => createJavaScriptDemo(selectedAppId, apiBaseUrl, t), [apiBaseUrl, selectedAppId, t]);
+  const curlDemo = useMemo(() => createCurlDemo("activate", selectedAppId, apiBaseUrl, t), [apiBaseUrl, selectedAppId, t]);
+  const htmlDemo = useMemo(() => createHtmlDemo(selectedAppId, apiBaseUrl, t), [apiBaseUrl, selectedAppId, t]);
+  const responseExample = useMemo(() => createResponseExample(t), [t]);
 
   useEffect(() => {
     if (selectedAppId === "app_xxx" && apps[0]) {
@@ -40,7 +45,7 @@ export function DocsPage() {
   return (
     <Space direction="vertical" className="w-full" size="large">
       <ProCard
-        title="客户端接入"
+        title={t("docs.clientAccess")}
         extra={
           selectedApp ? (
             <Tag color="blue" className="mr-0">
@@ -53,36 +58,36 @@ export function DocsPage() {
           <Alert
             showIcon
             type="warning"
-            message="app_secret 只在创建应用或更换密钥时显示一次，本页不会持久化或回显密钥。"
+            message={t("docs.secretWarning")}
           />
           <Descriptions bordered size="small" column={1}>
-            <Descriptions.Item label="API 基础地址">
-              <CopyableInline value={apiBaseUrl} label="API 基础地址" />
+            <Descriptions.Item label={t("docs.apiBaseUrl")}>
+              <CopyableInline value={apiBaseUrl} label={t("docs.apiBaseUrl")} />
             </Descriptions.Item>
-            <Descriptions.Item label="应用 ID">
+            <Descriptions.Item label={t("apps.appId")}>
               <Space wrap>
-                <CopyableInline value={selectedAppId} label="应用 ID" />
+                <CopyableInline value={selectedAppId} label={t("apps.appId")} />
                 <Select
                   value={selectedAppId}
-                  options={apps.map((app) => ({ value: app.app_id, label: formatAppOptionLabel(app) }))}
+                  options={apps.map((app) => ({ value: app.app_id, label: formatAppOptionLabel(app, t) }))}
                   popupMatchSelectWidth={false}
                   className="min-w-56"
                   onChange={setSelectedAppId}
                 />
               </Space>
             </Descriptions.Item>
-            <Descriptions.Item label="请求格式">JSON，统一使用 POST 和 Content-Type: application/json</Descriptions.Item>
-            <Descriptions.Item label="响应格式">成功返回 ok/data，失败返回 ok/error.code/error.message</Descriptions.Item>
+            <Descriptions.Item label={t("docs.requestFormat")}>{t("docs.requestFormatValue")}</Descriptions.Item>
+            <Descriptions.Item label={t("docs.responseFormat")}>{t("docs.responseFormatValue")}</Descriptions.Item>
           </Descriptions>
           <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-            <StepCard title="1. 保存凭据" text="在客户端配置 app_id 和 app_secret，密钥不要写入公开仓库。" />
-            <StepCard title="2. 生成设备指纹" text="使用稳定设备标识，后端只保存 HMAC 后的设备哈希。" />
-            <StepCard title="3. 调用授权接口" text="首次激活调用 activate，后续启动调用 verify，迁移前旧设备调用 unbind-device。" />
+            <StepCard title={t("docs.stepCredentialsTitle")} text={t("docs.stepCredentialsText")} />
+            <StepCard title={t("docs.stepFingerprintTitle")} text={t("docs.stepFingerprintText")} />
+            <StepCard title={t("docs.stepCallTitle")} text={t("docs.stepCallText")} />
           </div>
         </Space>
       </ProCard>
 
-      <ProCard title="API 调用方法">
+      <ProCard title={t("docs.apiMethods")}>
         <Tabs
           items={clientActions.map((action) => ({
             key: action.value,
@@ -91,46 +96,46 @@ export function DocsPage() {
               <Space direction="vertical" className="w-full" size="middle">
                 <Typography.Text type="secondary">{action.description}</Typography.Text>
                 <Descriptions bordered size="small" column={1}>
-                  <Descriptions.Item label="地址">
+                  <Descriptions.Item label={t("docs.address")}>
                     <Typography.Text code>POST {action.path}</Typography.Text>
                   </Descriptions.Item>
-                  <Descriptions.Item label="公共参数">app_id、app_secret、code</Descriptions.Item>
-                  <Descriptions.Item label="设备参数">device_fingerprint</Descriptions.Item>
+                  <Descriptions.Item label={t("docs.commonParams")}>app_id, app_secret, code</Descriptions.Item>
+                  <Descriptions.Item label={t("docs.deviceParams")}>device_fingerprint</Descriptions.Item>
                 </Descriptions>
                 <FlowChart steps={clientActionFlows[action.value]} />
-                <CodeBlock value={createRequestPayload(action.value, selectedAppId)} title="请求示例" language="json" />
+                <CodeBlock value={createRequestPayload(action.value, selectedAppId, t)} title={t("docs.requestExample")} language="json" />
               </Space>
             )
           }))}
         />
       </ProCard>
 
-      <ProCard title="现成 demo">
+      <ProCard title={t("docs.demos")}>
         <Tabs
           items={[
             {
               key: "javascript",
               label: "JavaScript SDK",
               icon: <FileTextOutlined />,
-              children: <CodeBlock value={jsDemo} title="可直接放入客户端项目的封装" language="javascript" />
+              children: <CodeBlock value={jsDemo} title={t("docs.jsDemoTitle")} language="javascript" />
             },
             {
               key: "curl",
               label: "cURL",
               icon: <ApiOutlined />,
-              children: <CodeBlock value={curlDemo} title="命令行调试" language="shell" />
+              children: <CodeBlock value={curlDemo} title={t("docs.curlTitle")} language="shell" />
             },
             {
               key: "html",
               label: "HTML Demo",
               icon: <PlayCircleOutlined />,
-              children: <CodeBlock value={htmlDemo} title="单文件浏览器 demo" language="html" />
+              children: <CodeBlock value={htmlDemo} title={t("docs.htmlTitle")} language="html" />
             },
             {
               key: "response",
-              label: "响应示例",
+              label: t("docs.responseExample"),
               icon: <ExperimentOutlined />,
-              children: <CodeBlock value={responseExample} title="成功响应" language="json" />
+              children: <CodeBlock value={responseExample} title={t("docs.successResponse")} language="json" />
             }
           ]}
         />
@@ -140,9 +145,11 @@ export function DocsPage() {
 }
 
 function FlowChart({ steps }: { steps: ClientFlowStep[] }) {
+  const { t } = useI18n();
+
   return (
     <div>
-      <Typography.Text type="secondary">调用流程</Typography.Text>
+      <Typography.Text type="secondary">{t("docs.flow")}</Typography.Text>
       <div className="rounded-md border border-slate-200 bg-slate-50 p-3 mt-2">
         <Steps
           size="small"
@@ -173,6 +180,7 @@ function StepCard({ title, text }: { title: string; text: string }) {
 
 function CopyableInline({ value, label }: { value: string; label: string }) {
   const { message } = AntApp.useApp();
+  const { t } = useI18n();
 
   return (
     <Space size={4}>
@@ -183,11 +191,11 @@ function CopyableInline({ value, label }: { value: string; label: string }) {
         size="small"
         type="text"
         icon={<CopyOutlined />}
-        aria-label={`复制${label}`}
-        title={`复制${label}`}
+        aria-label={t("common.copy")}
+        title={t("common.copy")}
         onClick={async () => {
           await navigator.clipboard.writeText(value);
-          message.success(`已复制${label}`);
+          message.success(t("common.copiedLabel", { label }));
         }}
       />
     </Space>

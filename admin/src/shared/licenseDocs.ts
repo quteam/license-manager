@@ -12,53 +12,62 @@ export type ClientFlowStep = {
   detail: string;
 };
 
-export const clientActions: ClientActionMeta[] = [
+type Translate = (key: string, values?: Record<string, string | number>) => string;
+
+export function getClientActions(t: Translate): ClientActionMeta[] {
+  return [
   {
     value: "activate",
-    label: "激活",
+    label: t("docs.actionActivate"),
     path: "/api/client/activate",
-    description: "首次绑定激活码和设备，并返回授权有效期。"
+    description: t("docs.actionActivateDesc")
   },
   {
     value: "verify",
-    label: "校验",
+    label: t("docs.actionVerify"),
     path: "/api/client/verify",
-    description: "客户端启动或关键功能使用前校验激活码。"
+    description: t("docs.actionVerifyDesc")
   },
   {
     value: "unbind",
-    label: "解绑",
+    label: t("docs.actionUnbind"),
     path: "/api/client/unbind-device",
-    description: "旧设备解除当前绑定后，新设备可使用同一激活码重新激活。"
+    description: t("docs.actionUnbindDesc")
   }
-];
+  ];
+}
 
-export const clientActionFlows: Record<ClientAction, ClientFlowStep[]> = {
+export function getClientActionFlows(t: Translate): Record<ClientAction, ClientFlowStep[]> {
+  return {
   activate: [
-    { title: "客户端提交", detail: "传入 app_id、app_secret、激活码和设备指纹。" },
-    { title: "校验应用", detail: "确认应用存在、状态可用且密钥匹配。" },
-    { title: "校验激活码", detail: "检查激活码归属、删除、禁用、过期和设备绑定状态。" },
-    { title: "绑定设备", detail: "首次激活写入设备哈希和有效期；已解绑激活码只重新绑定设备。" },
-    { title: "返回授权", detail: "返回套餐、有效期、剩余秒数和绑定状态。" }
+    { title: t("docs.submitClient"), detail: t("docs.submitClientActivate") },
+    { title: t("docs.verifyApp"), detail: t("docs.verifyAppDesc") },
+    { title: t("docs.verifyCode"), detail: t("docs.verifyCodeActivateDesc") },
+    { title: t("docs.bindDevice"), detail: t("docs.bindDeviceDesc") },
+    { title: t("docs.returnLicense"), detail: t("docs.returnLicenseActivateDesc") }
   ],
   verify: [
-    { title: "客户端提交", detail: "传入 app_id、app_secret、激活码和当前设备指纹。" },
-    { title: "校验应用", detail: "确认应用存在、状态可用且密钥匹配。" },
-    { title: "校验状态", detail: "确认激活码已激活、未删除、未禁用且未过期。" },
-    { title: "校验设备", detail: "设备哈希必须与当前绑定设备一致。" },
-    { title: "返回授权", detail: "返回有效授权信息和当前绑定状态。" }
+    { title: t("docs.submitClient"), detail: t("docs.submitClientVerify") },
+    { title: t("docs.verifyApp"), detail: t("docs.verifyAppDesc") },
+    { title: t("docs.verifyStatus"), detail: t("docs.verifyStatusDesc") },
+    { title: t("docs.verifyDevice"), detail: t("docs.verifyDeviceDesc") },
+    { title: t("docs.returnLicense"), detail: t("docs.returnLicenseVerifyDesc") }
   ],
   unbind: [
-    { title: "旧设备提交", detail: "旧设备传入 app_id、app_secret、激活码和当前设备指纹。" },
-    { title: "校验应用", detail: "确认应用存在、状态可用且密钥匹配。" },
-    { title: "校验激活码", detail: "确认激活码已激活、未删除、未禁用且未过期。" },
-    { title: "校验解绑条件", detail: "当前设备必须匹配，且次数和频率未超过限制。" },
-    { title: "清空绑定", detail: "清空设备哈希，保留原激活时间和过期时间。" },
-    { title: "新设备激活", detail: "新设备继续调用激活接口完成重新绑定。" }
+    { title: t("docs.submitOldDevice"), detail: t("docs.submitOldDeviceDesc") },
+    { title: t("docs.verifyApp"), detail: t("docs.verifyAppDesc") },
+    { title: t("docs.verifyCode"), detail: t("docs.verifyCodeUnbindDesc") },
+    { title: t("docs.verifyUnbind"), detail: t("docs.verifyUnbindDesc") },
+    { title: t("docs.clearBinding"), detail: t("docs.clearBindingDesc") },
+    { title: t("docs.activateNewDevice"), detail: t("docs.activateNewDeviceDesc") }
   ]
 };
+}
 
-export const responseExample = `{
+export const clientActions = getClientActions((key) => key);
+
+export function createResponseExample(t: Translate) {
+  return `{
   "ok": true,
   "data": {
     "valid": true,
@@ -66,7 +75,7 @@ export const responseExample = `{
     "app_id": "app_xxx",
     "plan": {
       "code": "monthly",
-      "name": "月卡",
+      "name": "${escapeJsString(t("docs.responsePlanName"))}",
       "duration_days": 30
     },
     "activated_at": "2026-06-25T08:00:00.000Z",
@@ -76,32 +85,34 @@ export const responseExample = `{
     "max_rebinds": 3
   }
 }`;
+}
 
 export function getClientPath(action: ClientAction) {
   return clientActions.find((item) => item.value === action)?.path ?? "/api/client/activate";
 }
 
-export function createRequestPayload(action: ClientAction, appId: string) {
+export function createRequestPayload(action: ClientAction, appId: string, t?: Translate) {
+  const secretPlaceholder = t ? t("docs.secretPlaceholder") : "替换为创建应用时保存的 app_secret";
   const body =
     action === "unbind"
       ? {
           app_id: appId,
-          app_secret: "替换为创建应用时保存的 app_secret",
+          app_secret: secretPlaceholder,
           code: "LM-XXXXX-XXXXX-XXXXX-XXXXX",
           device_fingerprint: "stable-device-id"
         }
       : {
           app_id: appId,
-          app_secret: "替换为创建应用时保存的 app_secret",
+          app_secret: secretPlaceholder,
           code: "LM-XXXXX-XXXXX-XXXXX-XXXXX",
           device_fingerprint: "stable-device-id"
         };
   return JSON.stringify(body, null, 2);
 }
 
-export function createJavaScriptDemo(appId: string, apiBaseUrl: string) {
+export function createJavaScriptDemo(appId: string, apiBaseUrl: string, t?: Translate) {
   return `const APP_ID = "${escapeJsString(appId)}";
-const APP_SECRET = "替换为创建应用时保存的 app_secret";
+const APP_SECRET = "${escapeJsString(t ? t("docs.secretPlaceholder") : "替换为创建应用时保存的 app_secret")}";
 const API_BASE_URL = "${escapeJsString(apiBaseUrl)}";
 
 async function requestLicense(path, body) {
@@ -116,7 +127,7 @@ async function requestLicense(path, body) {
   });
   const payload = await response.json();
   if (!payload.ok) {
-    throw new Error(payload.error?.message || payload.error?.code || "请求失败");
+    throw new Error(payload.error?.message || payload.error?.code || "${escapeJsString(t ? t("docs.errorFallback") : "请求失败")}");
   }
   return payload.data;
 }
@@ -143,22 +154,23 @@ export function unbindDevice(code, deviceFingerprint) {
 }`;
 }
 
-export function createCurlDemo(action: ClientAction, appId: string, apiBaseUrl: string) {
+export function createCurlDemo(action: ClientAction, appId: string, apiBaseUrl: string, t?: Translate) {
   return `curl -X POST '${escapeShellString(`${apiBaseUrl}${getClientPath(action)}`)}' \\
   -H 'Content-Type: application/json' \\
-  --data '${escapeShellString(createRequestPayload(action, appId))}'`;
+  --data '${escapeShellString(createRequestPayload(action, appId, t))}'`;
 }
 
-export function createHtmlDemo(appId: string, apiBaseUrl: string) {
+export function createHtmlDemo(appId: string, apiBaseUrl: string, t?: Translate) {
+  const language = t?.("common.language") === "Language" ? "en" : "zh-CN";
   return `<!doctype html>
-<html lang="zh-CN">
+<html lang="${language}">
   <meta charset="utf-8" />
   <title>License Demo</title>
   <form id="license-form">
     <input name="app_secret" placeholder="app_secret" type="password" required />
-    <input name="code" placeholder="激活码" required />
-    <input name="device_fingerprint" placeholder="设备指纹" value="demo-device-001" required />
-    <button type="submit">激活</button>
+    <input name="code" placeholder="${escapeJsString(t ? t("docs.codePlaceholder") : "激活码")}" required />
+    <input name="device_fingerprint" placeholder="${escapeJsString(t ? t("docs.devicePlaceholder") : "设备指纹")}" value="demo-device-001" required />
+    <button type="submit">${escapeJsString(t ? t("docs.activateButton") : "激活")}</button>
   </form>
   <pre id="result"></pre>
   <script>

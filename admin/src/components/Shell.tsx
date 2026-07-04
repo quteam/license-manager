@@ -1,13 +1,15 @@
 import {
+  GlobalOutlined,
   LockOutlined,
   LogoutOutlined,
   UserOutlined
 } from "@ant-design/icons";
 import { PageContainer, ProLayout, type ProLayoutProps } from "@ant-design/pro-components";
-import { Dropdown, Skeleton, Space } from "antd";
+import { Dropdown, Select, Skeleton, Space } from "antd";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import logoUrl from "../assets/logo.webp";
-import { defaultPage, menuRoutes, pathToPage, routeMap, type PageKey } from "../routes";
+import { useI18n } from "../i18n";
+import { defaultPage, getAdminPageRoutes, getMenuRoutes, getRouteMap, pathToPage, type PageKey } from "../routes";
 import type { AdminUser } from "../types";
 import { ChangePasswordModal } from "./ChangePasswordModal";
 
@@ -48,16 +50,20 @@ type ShellProps = {
 };
 
 export function Shell({ admin, onLogout }: ShellProps) {
+  const { language, setLanguage, t } = useI18n();
+  const adminPageRoutes = useMemo(() => getAdminPageRoutes(t), [t]);
+  const routeMap = useMemo(() => getRouteMap(adminPageRoutes), [adminPageRoutes]);
+  const menuRoutes = useMemo(() => getMenuRoutes(adminPageRoutes, t), [adminPageRoutes, t]);
   const [page, setPage] = useState<PageKey>(() => getPageFromLocation());
   const [passwordOpen, setPasswordOpen] = useState(false);
-  const currentRoute = useMemo(() => routeMap[page], [page]);
+  const currentRoute = useMemo(() => routeMap[page], [page, routeMap]);
   const currentPage = currentRoute.element;
   const breadcrumbItems = useMemo(
     () => [
-      { title: "首页" },
+      { title: t("common.home") },
       ...(page === defaultPage ? [] : [{ title: currentRoute.name }])
     ],
-    [currentRoute.name, page]
+    [currentRoute.name, page, t]
   );
 
   useEffect(() => {
@@ -90,7 +96,7 @@ export function Shell({ admin, onLogout }: ShellProps) {
     <>
       <ProLayout
         {...layoutSettings}
-        title="授权管理系统"
+        title={t("app.title")}
         logo={logoUrl}
         route={{ path: "/", routes: menuRoutes }}
         location={{ pathname: currentRoute.path }}
@@ -116,8 +122,8 @@ export function Shell({ admin, onLogout }: ShellProps) {
             <Dropdown
               menu={{
                 items: [
-                  { key: "password", icon: <LockOutlined />, label: "修改密码" },
-                  { key: "logout", icon: <LogoutOutlined />, label: "退出登录", danger: true }
+                  { key: "password", icon: <LockOutlined />, label: t("auth.changePassword") },
+                  { key: "logout", icon: <LogoutOutlined />, label: t("common.logout"), danger: true }
                 ],
                 onClick: ({ key }) => {
                   if (key === "password") {
@@ -138,6 +144,21 @@ export function Shell({ admin, onLogout }: ShellProps) {
             </Dropdown>
           )
         }}
+        actionsRender={() => [
+          <Select
+            key="language"
+            size="small"
+            aria-label={t("common.language")}
+            value={language}
+            suffixIcon={<GlobalOutlined />}
+            popupMatchSelectWidth={false}
+            options={[
+              { value: "zh", label: t("common.chinese") },
+              { value: "en", label: t("common.english") }
+            ]}
+            onChange={setLanguage}
+          />
+        ]}
       >
         <PageContainer title={page === defaultPage ? false : currentRoute.name}>
           <Suspense fallback={<Skeleton active paragraph={{ rows: 10 }} />}>{currentPage}</Suspense>

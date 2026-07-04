@@ -6,11 +6,12 @@ import { useCatalogs } from "../hooks/useCatalogs";
 import { formatAppOptionLabel } from "../shared/appPlatform";
 import { CodeBlock } from "../shared/CodeBlock";
 import {
-  clientActions,
   createRequestPayload,
+  getClientActions,
   getClientPath,
   type ClientAction
 } from "../shared/licenseDocs";
+import { useI18n } from "../i18n";
 import type { ApiResponse } from "../types";
 
 type PlaygroundValues = {
@@ -23,6 +24,7 @@ type PlaygroundValues = {
 
 export function PlaygroundPage() {
   const { message } = AntApp.useApp();
+  const { t } = useI18n();
   const { apps } = useCatalogs();
   const [playgroundForm] = Form.useForm<PlaygroundValues>();
   const [selectedAppId, setSelectedAppId] = useState<string>(() => apps[0]?.app_id ?? "app_xxx");
@@ -30,8 +32,9 @@ export function PlaygroundPage() {
   const [playgroundResult, setPlaygroundResult] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const apiBaseUrl = window.location.origin;
+  const clientActions = useMemo(() => getClientActions(t), [t]);
   const selectedActionMeta = clientActions.find((action) => action.value === selectedAction) ?? clientActions[0];
-  const requestPayload = useMemo(() => createRequestPayload(selectedAction, selectedAppId), [selectedAction, selectedAppId]);
+  const requestPayload = useMemo(() => createRequestPayload(selectedAction, selectedAppId, t), [selectedAction, selectedAppId, t]);
 
   useEffect(() => {
     if (selectedAppId === "app_xxx" && apps[0]) {
@@ -44,12 +47,12 @@ export function PlaygroundPage() {
     <div className="grid grid-cols-1 items-start gap-6 min-[1180px]:grid-cols-[minmax(0,0.95fr)_minmax(420px,1.05fr)]">
       <ProCard title="Playground">
         <Space direction="vertical" className="w-full" size="middle">
-          <Alert showIcon type="info" message="在线调用真实客户端接口，会写入操作日志；激活接口会绑定激活码和设备，解绑接口会清除当前绑定。" />
+          <Alert showIcon type="info" message={t("playground.warning")} />
           <ProForm<PlaygroundValues>
             form={playgroundForm}
             layout="vertical"
             submitter={{
-              searchConfig: { submitText: "发送请求" },
+              searchConfig: { submitText: t("common.send") },
               submitButtonProps: { icon: <PlayCircleOutlined />, loading: submitting },
               resetButtonProps: false
             }}
@@ -78,13 +81,13 @@ export function PlaygroundPage() {
                 const data = (await response.json()) as ApiResponse<unknown>;
                 setPlaygroundResult(JSON.stringify(data, null, 2));
                 if (data.ok) {
-                  message.success("请求成功");
+                  message.success(t("common.requestSucceeded"));
                 } else {
                   message.error(data.error.message || data.error.code);
                 }
                 return data.ok;
               } catch (error) {
-                const text = error instanceof Error ? error.message : "请求失败";
+                const text = error instanceof Error ? error.message : t("common.requestFailed");
                 setPlaygroundResult(JSON.stringify({ ok: false, error: { message: text } }, null, 2));
                 message.error(text);
                 return false;
@@ -95,29 +98,29 @@ export function PlaygroundPage() {
           >
             <ProFormSelect
               name="action"
-              label="接口"
+              label={t("playground.action")}
               options={clientActions.map((action) => ({ value: action.value, label: `${action.label} ${action.path}` }))}
-              rules={[{ required: true, message: "请选择接口" }]}
+              rules={[{ required: true, message: t("playground.actionRequired") }]}
             />
             <ProFormSelect
               name="app_id"
-              label="应用"
-              options={apps.map((app) => ({ value: app.app_id, label: formatAppOptionLabel(app) }))}
-              rules={[{ required: true, message: "请选择应用" }]}
+              label={t("common.app")}
+              options={apps.map((app) => ({ value: app.app_id, label: formatAppOptionLabel(app, t) }))}
+              rules={[{ required: true, message: t("playground.appRequired") }]}
             />
             <ProFormText.Password
               name="app_secret"
-              label="应用密钥"
+              label={t("playground.appSecret")}
               fieldProps={{ autoComplete: "off" }}
-              rules={[{ required: true, message: "请输入应用密钥" }]}
+              rules={[{ required: true, message: t("playground.appSecretRequired") }]}
             />
-            <ProFormText name="code" label="激活码" rules={[{ required: true, message: "请输入激活码" }]} />
+            <ProFormText name="code" label={t("playground.code")} rules={[{ required: true, message: t("playground.codeRequired") }]} />
             <ProFormDependency name={["action"]}>
               {({ action }) =>
                 <ProFormText
                   name="device_fingerprint"
-                  label={action === "unbind" ? "当前设备指纹" : "设备指纹"}
-                  rules={[{ required: true, message: "请输入设备指纹" }]}
+                  label={action === "unbind" ? t("playground.currentDeviceFingerprint") : t("playground.deviceFingerprint")}
+                  rules={[{ required: true, message: t("playground.deviceFingerprintRequired") }]}
                 />
               }
             </ProFormDependency>
@@ -127,7 +130,7 @@ export function PlaygroundPage() {
 
       <Space direction="vertical" className="w-full" size="large">
         <ProCard
-          title="请求预览"
+          title={t("playground.requestPreview")}
           extra={
             <Typography.Text type="secondary" copyable={{ text: `${apiBaseUrl}${selectedActionMeta.path}` }}>
               {selectedActionMeta.path}
@@ -137,10 +140,10 @@ export function PlaygroundPage() {
           <CodeBlock value={requestPayload} title="JSON Body" language="json" />
         </ProCard>
 
-        <ProCard title="返回结果">
+        <ProCard title={t("playground.responseResult")}>
           <CodeBlock
-            value={playgroundResult || "// 发送请求后显示完整 JSON 响应"}
-            title="响应 JSON"
+            value={playgroundResult || t("playground.emptyResult")}
+            title={t("playground.responseJson")}
             language={playgroundResult ? "json" : "javascript"}
             copyText={playgroundResult || ""}
           />

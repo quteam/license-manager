@@ -5,23 +5,25 @@ import { useMemo, useState } from "react";
 import { apiRequest } from "../api";
 import { useCatalogs } from "../hooks/useCatalogs";
 import { formatAppOptionLabel } from "../shared/appPlatform";
+import { useI18n } from "../i18n";
 import { MAX_CODE_BATCH_QUANTITY } from "../shared/constants";
 import { normalizeParams } from "../shared/params";
 import { formatPlanLabel } from "../shared/plan";
 
 export function GeneratePage() {
   const { message } = AntApp.useApp();
+  const { t } = useI18n();
   const { apps, plans } = useCatalogs();
   const [codes, setCodes] = useState<string[]>([]);
   const csv = useMemo(() => codes.join("\n"), [codes]);
 
   return (
     <div className="grid grid-cols-1 items-start gap-6 min-[961px]:grid-cols-[minmax(320px,420px)_minmax(0,1fr)]">
-      <ProCard title="生成参数">
+      <ProCard title={t("generate.params")}>
         <ProForm
           layout="vertical"
           submitter={{
-            searchConfig: { submitText: "生成" },
+            searchConfig: { submitText: t("common.generated") },
             submitButtonProps: { icon: <PlusOutlined /> },
             resetButtonProps: false
           }}
@@ -33,53 +35,53 @@ export function GeneratePage() {
                 body: JSON.stringify(normalizeParams(values))
               });
               setCodes(data.codes);
-              message.success(`已生成 ${data.codes.length} 个激活码`);
+              message.success(t("generate.generatedCodes", { count: data.codes.length }));
               return true;
             } catch (error) {
-              message.error(error instanceof Error ? error.message : "生成失败");
+              message.error(error instanceof Error ? error.message : t("generate.failed"));
               return false;
             }
           }}
         >
           <ProFormSelect
             name="app_id"
-            label="应用"
-            options={apps.map((app) => ({ value: app.app_id, label: formatAppOptionLabel(app) }))}
-            rules={[{ required: true, message: "请选择应用" }]}
+            label={t("common.app")}
+            options={apps.map((app) => ({ value: app.app_id, label: formatAppOptionLabel(app, t) }))}
+            rules={[{ required: true, message: t("generate.appRequired") }]}
           />
           <ProFormSelect
             name="plan_code"
-            label="套餐"
-            options={plans.map((plan) => ({ value: plan.code, label: formatPlanLabel(plan) }))}
-            rules={[{ required: true, message: "请选择套餐" }]}
+            label={t("common.plan")}
+            options={plans.map((plan) => ({ value: plan.code, label: formatPlanLabel(plan, t) }))}
+            rules={[{ required: true, message: t("generate.planRequired") }]}
           />
           <ProFormDigit
             name="quantity"
-            label="数量"
+            label={t("common.quantity")}
             min={1}
             max={MAX_CODE_BATCH_QUANTITY}
             fieldProps={{ precision: 0 }}
-            rules={[{ required: true, message: "请输入数量" }]}
+            rules={[{ required: true, message: t("generate.quantityRequired") }]}
           />
-          <ProFormTextArea name="note" label="备注" fieldProps={{ rows: 3, maxLength: 120, showCount: true }} />
+          <ProFormTextArea name="note" label={t("common.note")} fieldProps={{ rows: 3, maxLength: 120, showCount: true }} />
         </ProForm>
       </ProCard>
       <ProCard
-        title="生成结果"
+        title={t("generate.result")}
         extra={
           <Button
             icon={<CopyOutlined />}
             disabled={codes.length === 0}
             onClick={async () => {
               await navigator.clipboard.writeText(csv);
-              message.success("已复制");
+              message.success(t("common.copied"));
             }}
           >
-            复制
+            {t("common.copy")}
           </Button>
         }
       >
-        <Input.TextArea value={csv} readOnly rows={18} placeholder="生成后明文激活码只在这里显示" />
+        <Input.TextArea value={csv} readOnly rows={18} placeholder={t("generate.placeholder")} />
       </ProCard>
     </div>
   );

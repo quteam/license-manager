@@ -1,5 +1,6 @@
 import { CopyOutlined } from "@ant-design/icons";
 import { App as AntApp, Button, Typography } from "antd";
+import { useI18n } from "../i18n";
 
 export type CodeLanguage = "javascript" | "json" | "html" | "shell" | "text";
 
@@ -13,6 +14,7 @@ type CodeBlockProps = {
 
 export function CodeBlock({ value, title, language = "text", copyText, maxHeight = 520 }: CodeBlockProps) {
   const { message } = AntApp.useApp();
+  const { t } = useI18n();
 
   return (
     <div className="space-y-3">
@@ -23,10 +25,10 @@ export function CodeBlock({ value, title, language = "text", copyText, maxHeight
           icon={<CopyOutlined />}
           onClick={async () => {
             await navigator.clipboard.writeText(copyText ?? value);
-            message.success("已复制");
+            message.success(t("common.copied"));
           }}
         >
-          复制
+          {t("common.copy")}
         </Button>
       </div>
       <div

@@ -11,7 +11,8 @@ import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
 import { apiRequest } from "../api";
 import { formatAppPlatform } from "../shared/appPlatform";
-import { CODE_DERIVED_STATUS, CODE_LIST_STATUS_VALUE_ENUM, CODE_STATUS } from "../shared/constants";
+import { CODE_DERIVED_STATUS, CODE_STATUS, getCodeListStatusValueEnum } from "../shared/constants";
+import { useI18n } from "../i18n";
 import type { DashboardStats } from "../types";
 
 const STATUS_COLORS: Record<string, string> = {
@@ -34,6 +35,7 @@ type KpiCardProps = {
 
 export function DashboardPage() {
   const { message } = AntApp.useApp();
+  const { t } = useI18n();
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState<DashboardStats | null>(null);
 
@@ -43,7 +45,7 @@ export function DashboardPage() {
       const data = await apiRequest<DashboardStats>("/api/admin/dashboard");
       setStats(data);
     } catch (error) {
-      message.error(error instanceof Error ? error.message : "加载失败");
+      message.error(error instanceof Error ? error.message : t("common.loadingFailed"));
     } finally {
       setLoading(false);
     }
@@ -67,30 +69,30 @@ export function DashboardPage() {
       ) : stats ? (
         <>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-            <KpiCard title="应用总数" value={stats.overview.apps_total} icon={<AppstoreOutlined />} extra={`启用 ${stats.overview.apps_active}`} />
-            <KpiCard title="激活码总数" value={stats.overview.codes_total} icon={<KeyOutlined />} extra={`激活率 ${activationRate}%`} />
-            <KpiCard title="今日操作" value={stats.overview.logs_today} icon={<BarChartOutlined />} extra="成功和失败日志" />
-            <KpiCard title="今日客户端失败" value={stats.overview.client_failures_today} icon={<CloseCircleOutlined />} extra="激活、校验、解绑" />
+            <KpiCard title={t("dashboard.appsTotal")} value={stats.overview.apps_total} icon={<AppstoreOutlined />} extra={t("dashboard.appsActive", { count: stats.overview.apps_active })} />
+            <KpiCard title={t("dashboard.codesTotal")} value={stats.overview.codes_total} icon={<KeyOutlined />} extra={t("dashboard.activationRate", { rate: activationRate })} />
+            <KpiCard title={t("dashboard.logsToday")} value={stats.overview.logs_today} icon={<BarChartOutlined />} extra={t("dashboard.logsTodayExtra")} />
+            <KpiCard title={t("dashboard.clientFailuresToday")} value={stats.overview.client_failures_today} icon={<CloseCircleOutlined />} extra={t("dashboard.clientFailuresTodayExtra")} />
           </div>
 
           <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(360px,0.72fr)]">
-            <Card title="激活码状态分布" variant="borderless">
+            <Card title={t("dashboard.statusDistribution")} variant="borderless">
               <StatusDistribution items={stats.code_status} total={stats.overview.codes_total} />
             </Card>
-            <Card title="最近 7 天操作趋势" variant="borderless">
+            <Card title={t("dashboard.logTrend")} variant="borderless">
               <TrendChart items={stats.log_trend} />
             </Card>
           </div>
 
-          <Card title="最近 7 天激活码走势" variant="borderless">
+          <Card title={t("dashboard.codeTrend")} variant="borderless">
             <CodeTrendChart items={stats.code_trend} />
           </Card>
 
           <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(360px,0.72fr)]">
-            <Card title="应用激活码排行" variant="borderless">
+            <Card title={t("dashboard.appRanking")} variant="borderless">
               <AppRanking items={stats.app_code_ranking} />
             </Card>
-            <Card title="套餐分布" variant="borderless">
+            <Card title={t("dashboard.planDistribution")} variant="borderless">
               <PlanDistribution items={stats.plan_distribution} />
             </Card>
           </div>
@@ -117,14 +119,16 @@ function KpiCard({ title, value, icon, extra }: KpiCardProps) {
 }
 
 function StatusDistribution({ items, total }: { items: DashboardStats["code_status"]; total: number }) {
+  const { t } = useI18n();
   if (total === 0) {
     return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} />;
   }
+  const statusValueEnum = getCodeListStatusValueEnum(t);
   const data = items
     .filter((item) => item.count > 0)
     .map((item) => ({
       key: item.status,
-      label: CODE_LIST_STATUS_VALUE_ENUM[item.status]?.text ?? item.status,
+      label: statusValueEnum[item.status]?.text ?? item.status,
       count: item.count,
       color: STATUS_COLORS[item.status] ?? "#1677ff"
     }));
@@ -151,7 +155,7 @@ function StatusDistribution({ items, total }: { items: DashboardStats["code_stat
     labelTransform: PIE_LABEL_TRANSFORM,
     tooltip: {
       title: "label",
-      items: [{ field: "count", name: "数量" }]
+      items: [{ field: "count", name: t("common.dateCount") }]
     }
   } as PieConfig;
 
@@ -163,13 +167,14 @@ function StatusDistribution({ items, total }: { items: DashboardStats["code_stat
 }
 
 function TrendChart({ items }: { items: DashboardStats["log_trend"] }) {
+  const { t } = useI18n();
   if (items.length === 0) {
     return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} />;
   }
 
   const data = items.flatMap((item) => [
-    { date: dayjs(item.date).format("MM-DD"), type: "成功", count: item.success },
-    { date: dayjs(item.date).format("MM-DD"), type: "失败", count: item.failure }
+    { date: dayjs(item.date).format("MM-DD"), type: t("common.success"), count: item.success },
+    { date: dayjs(item.date).format("MM-DD"), type: t("common.failure"), count: item.failure }
   ]);
 
   const config: LineConfig = {
@@ -180,7 +185,7 @@ function TrendChart({ items }: { items: DashboardStats["log_trend"] }) {
     height: 260,
     scale: {
       color: {
-        domain: ["成功", "失败"],
+        domain: [t("common.success"), t("common.failure")],
         range: ["#52c41a", "#ff4d4f"]
       }
     },
@@ -195,7 +200,7 @@ function TrendChart({ items }: { items: DashboardStats["log_trend"] }) {
     },
     tooltip: {
       title: "date",
-      items: [{ field: "count", name: "次数" }]
+      items: [{ field: "count", name: t("common.times") }]
     },
     legend: {
       color: {
@@ -212,14 +217,15 @@ function TrendChart({ items }: { items: DashboardStats["log_trend"] }) {
 }
 
 function CodeTrendChart({ items }: { items: DashboardStats["code_trend"] }) {
+  const { t } = useI18n();
   if (items.length === 0) {
     return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} />;
   }
 
   const data = items.flatMap((item) => [
-    { date: dayjs(item.date).format("MM-DD"), type: "激活", count: item.activated },
-    { date: dayjs(item.date).format("MM-DD"), type: "到期", count: item.expired },
-    { date: dayjs(item.date).format("MM-DD"), type: "使用中", count: item.active }
+    { date: dayjs(item.date).format("MM-DD"), type: t("dashboard.activated"), count: item.activated },
+    { date: dayjs(item.date).format("MM-DD"), type: t("dashboard.expired"), count: item.expired },
+    { date: dayjs(item.date).format("MM-DD"), type: t("dashboard.inUse"), count: item.active }
   ]);
 
   const config: LineConfig = {
@@ -230,7 +236,7 @@ function CodeTrendChart({ items }: { items: DashboardStats["code_trend"] }) {
     height: 260,
     scale: {
       color: {
-        domain: ["激活", "到期", "使用中"],
+        domain: [t("dashboard.activated"), t("dashboard.expired"), t("dashboard.inUse")],
         range: ["#1677ff", "#ff4d4f", "#52c41a"]
       }
     },
@@ -245,7 +251,7 @@ function CodeTrendChart({ items }: { items: DashboardStats["code_trend"] }) {
     },
     tooltip: {
       title: "date",
-      items: [{ field: "count", name: "数量" }]
+      items: [{ field: "count", name: t("common.dateCount") }]
     },
     legend: {
       color: {
@@ -262,6 +268,7 @@ function CodeTrendChart({ items }: { items: DashboardStats["code_trend"] }) {
 }
 
 function AppRanking({ items }: { items: DashboardStats["app_code_ranking"] }) {
+  const { t } = useI18n();
   const visibleItems = items.filter((item) => item.total > 0);
   const maxTotal = Math.max(1, ...visibleItems.map((item) => item.total));
   if (visibleItems.length === 0) {
@@ -277,7 +284,7 @@ function AppRanking({ items }: { items: DashboardStats["app_code_ranking"] }) {
                 {item.app_name}
               </Typography.Text>
               <Typography.Text type="secondary" className="text-xs">
-                {formatAppPlatform(item.platform)}
+                {formatAppPlatform(item.platform, t)}
               </Typography.Text>
             </div>
             <Typography.Text className="tabular-nums">{item.total}</Typography.Text>
@@ -315,6 +322,7 @@ function StackedBar({ item, maxTotal }: { item: DashboardStats["app_code_ranking
 }
 
 function PlanDistribution({ items }: { items: DashboardStats["plan_distribution"] }) {
+  const { t } = useI18n();
   const visibleItems = items.filter((item) => item.count > 0);
   const total = visibleItems.reduce((sum, item) => sum + item.count, 0);
   if (total === 0) {
@@ -349,7 +357,7 @@ function PlanDistribution({ items }: { items: DashboardStats["plan_distribution"
     labelTransform: PIE_LABEL_TRANSFORM,
     tooltip: {
       title: "label",
-      items: [{ field: "count", name: "数量" }]
+      items: [{ field: "count", name: t("common.dateCount") }]
     }
   } as PieConfig;
 

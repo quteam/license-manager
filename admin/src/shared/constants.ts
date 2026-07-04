@@ -6,10 +6,14 @@ export const APP_STATUS = {
 export const APP_STATUS_VALUES = [APP_STATUS.ACTIVE, APP_STATUS.DISABLED] as const;
 export type AppStatus = (typeof APP_STATUS_VALUES)[number];
 
-export const APP_STATUS_VALUE_ENUM = {
-  [APP_STATUS.ACTIVE]: { text: "启用", status: "Success" },
-  [APP_STATUS.DISABLED]: { text: "禁用", status: "Warning" }
-} as const;
+type Translate = (key: string) => string;
+
+export function getAppStatusValueEnum(t: Translate) {
+  return {
+    [APP_STATUS.ACTIVE]: { text: t("status.appActive"), status: "Success" },
+    [APP_STATUS.DISABLED]: { text: t("status.appDisabled"), status: "Warning" }
+  } as const;
+}
 
 export const CODE_STATUS = {
   UNUSED: "unused",
@@ -34,13 +38,15 @@ export const CODE_LIST_STATUS_VALUES = [
 ] as const;
 export type CodeListStatus = (typeof CODE_LIST_STATUS_VALUES)[number];
 
-export const CODE_LIST_STATUS_VALUE_ENUM = {
-  [CODE_STATUS.UNUSED]: { text: "未激活" },
-  [CODE_STATUS.ACTIVE]: { text: "已激活" },
-  [CODE_DERIVED_STATUS.DISABLED]: { text: "已禁用" },
-  [CODE_DERIVED_STATUS.EXPIRED]: { text: "已过期" },
-  [CODE_STATUS.DELETED]: { text: "已删除" }
-} as const;
+export function getCodeListStatusValueEnum(t: Translate) {
+  return {
+    [CODE_STATUS.UNUSED]: { text: t("status.unused") },
+    [CODE_STATUS.ACTIVE]: { text: t("status.active") },
+    [CODE_DERIVED_STATUS.DISABLED]: { text: t("status.codeDisabled") },
+    [CODE_DERIVED_STATUS.EXPIRED]: { text: t("status.expired") },
+    [CODE_STATUS.DELETED]: { text: t("status.deleted") }
+  } as const;
+}
 
 export const CODE_TOGGLE_STATUS = {
   ENABLED: "enabled",
@@ -77,21 +83,23 @@ export const LOG_ACTION = {
   ROTATE_APP_SECRET: "rotate_app_secret"
 } as const;
 
-export const LOG_ACTION_VALUE_ENUM = {
-  [LOG_ACTION.BATCH_GENERATE]: { text: "批量生成" },
-  [LOG_ACTION.ACTIVATE]: { text: "激活" },
-  [LOG_ACTION.VERIFY]: { text: "校验" },
-  [LOG_ACTION.UNBIND_DEVICE]: { text: "解绑" },
-  [LOG_ACTION.MANUAL_UNBIND_DEVICE]: { text: "手动解绑" },
-  [LOG_ACTION.DELETE_CODE]: { text: "删除激活码" },
-  [LOG_ACTION.DISABLE_CODE]: { text: "禁用激活码" },
-  [LOG_ACTION.ENABLE_CODE]: { text: "启用激活码" },
-  [LOG_ACTION.DISABLE_APP]: { text: "禁用应用" },
-  [LOG_ACTION.ENABLE_APP]: { text: "启用应用" },
-  [LOG_ACTION.ROTATE_APP_SECRET]: { text: "更换应用密钥" }
-} as const;
+export function getLogActionValueEnum(t: Translate) {
+  return {
+    [LOG_ACTION.BATCH_GENERATE]: { text: t("logs.batchGenerate") },
+    [LOG_ACTION.ACTIVATE]: { text: t("logs.activate") },
+    [LOG_ACTION.VERIFY]: { text: t("logs.verify") },
+    [LOG_ACTION.UNBIND_DEVICE]: { text: t("logs.unbindDevice") },
+    [LOG_ACTION.MANUAL_UNBIND_DEVICE]: { text: t("logs.manualUnbindDevice") },
+    [LOG_ACTION.DELETE_CODE]: { text: t("logs.deleteCode") },
+    [LOG_ACTION.DISABLE_CODE]: { text: t("logs.disableCode") },
+    [LOG_ACTION.ENABLE_CODE]: { text: t("logs.enableCode") },
+    [LOG_ACTION.DISABLE_APP]: { text: t("logs.disableApp") },
+    [LOG_ACTION.ENABLE_APP]: { text: t("logs.enableApp") },
+    [LOG_ACTION.ROTATE_APP_SECRET]: { text: t("logs.rotateAppSecret") }
+  } as const;
+}
 
-export type LogAction = keyof typeof LOG_ACTION_VALUE_ENUM;
+export type LogAction = (typeof LOG_ACTION)[keyof typeof LOG_ACTION];
 
 export const LOG_RESULT = {
   SUCCESS: "success",

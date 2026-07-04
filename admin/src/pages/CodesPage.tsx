@@ -6,11 +6,12 @@ import { useRef, useState } from "react";
 import { apiRequest, toQuery } from "../api";
 import { useCatalogs } from "../hooks/useCatalogs";
 import { formatAppOptionLabel, formatAppPlatform } from "../shared/appPlatform";
+import { useI18n } from "../i18n";
 import {
   CODE_BULK_ACTION,
-  CODE_LIST_STATUS_VALUE_ENUM,
   CODE_STATUS,
   CODE_TOGGLE_STATUS,
+  getCodeListStatusValueEnum,
   type CodeBulkAction
 } from "../shared/constants";
 import { formatDate, isExpired, statusTag } from "../shared/format";
@@ -25,6 +26,7 @@ const ENABLE_CONFIRM_BUTTON_STYLE = { backgroundColor: "#389e0d", borderColor: "
 
 export function CodesPage() {
   const { message, modal } = AntApp.useApp();
+  const { t } = useI18n();
   const { apps, plans } = useCatalogs();
   const actionRef = useRef<ActionType | undefined>(undefined);
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
@@ -32,28 +34,28 @@ export function CodesPage() {
 
   const columns: ProColumns<CodeItem>[] = [
     {
-      title: "序号",
+      title: t("common.index"),
       valueType: "index",
       width: 72,
       search: false
     },
     {
-      title: "关键词",
+      title: t("common.keyword"),
       dataIndex: "query",
       hideInTable: true,
-      fieldProps: { placeholder: "搜索后缀、应用 ID、应用名" }
+      fieldProps: { placeholder: t("codes.searchPlaceholder") }
     },
     {
-      title: "应用",
+      title: t("common.app"),
       dataIndex: "app_id",
       hideInTable: true,
       valueType: "select",
       fieldProps: {
-        options: apps.map((app) => ({ value: app.app_id, label: formatAppOptionLabel(app) }))
+        options: apps.map((app) => ({ value: app.app_id, label: formatAppOptionLabel(app, t) }))
       }
     },
     {
-      title: "套餐",
+      title: t("common.plan"),
       dataIndex: "plan_code",
       hideInTable: true,
       valueType: "select",
@@ -62,47 +64,47 @@ export function CodesPage() {
       }
     },
     {
-      title: "后缀",
+      title: t("codes.suffix"),
       dataIndex: "code_suffix",
       width: 96,
       search: false,
       render: (_, row) => <Typography.Text code>{row.code_suffix}</Typography.Text>
     },
     {
-      title: "状态",
+      title: t("common.status"),
       dataIndex: "status",
       width: 96,
       valueType: "select",
-      valueEnum: CODE_LIST_STATUS_VALUE_ENUM,
-      render: (_, row) => statusTag(row)
+      valueEnum: getCodeListStatusValueEnum(t),
+      render: (_, row) => statusTag(row, t)
     },
     {
-      title: "绑定状态",
+      title: t("codes.bindingStatus"),
       dataIndex: "device_hash",
       width: 104,
       search: false,
-      render: (_, row) => (row.device_hash ? <Tag color="green">已绑定</Tag> : <Tag color="default">未绑定</Tag>)
+      render: (_, row) => (row.device_hash ? <Tag color="green">{t("status.bound")}</Tag> : <Tag color="default">{t("status.unbound")}</Tag>)
     },
     {
-      title: "应用",
+      title: t("common.app"),
       dataIndex: "app_name",
       width: 240,
       search: false,
-      render: (_, row) => `${row.app_name} / ${formatAppPlatform(row.app_platform)}`
+      render: (_, row) => `${row.app_name} / ${formatAppPlatform(row.app_platform, t)}`
     },
     {
-      title: "套餐",
+      title: t("common.plan"),
       dataIndex: "plan_name",
       width: 180,
       search: false,
-      render: (_, row) => formatPlanLabel(row)
+      render: (_, row) => formatPlanLabel(row, t)
     },
-    { title: "激活时间", dataIndex: "activated_at", width: 170, search: false, renderText: formatDate },
-    { title: "过期时间", dataIndex: "expires_at", width: 170, search: false, renderText: formatDate },
-    { title: "禁用时间", dataIndex: "disabled_at", width: 170, search: false, renderText: formatDate },
-    { title: "解绑", dataIndex: "rebind_count", width: 72, search: false },
+    { title: t("codes.activatedAt"), dataIndex: "activated_at", width: 170, search: false, renderText: formatDate },
+    { title: t("codes.expiresAt"), dataIndex: "expires_at", width: 170, search: false, renderText: formatDate },
+    { title: t("codes.disabledAt"), dataIndex: "disabled_at", width: 170, search: false, renderText: formatDate },
+    { title: t("codes.rebindCount"), dataIndex: "rebind_count", width: 72, search: false },
     {
-      title: "操作",
+      title: t("common.action"),
       valueType: "option",
       width: 230,
       fixed: "right",
@@ -112,43 +114,43 @@ export function CodesPage() {
             size="small"
             type="link"
             icon={<DisconnectOutlined />}
-            aria-label="解绑设备"
+            aria-label={t("codes.unbindDevice")}
             disabled={!canManuallyUnbind(row)}
             onClick={() => {
               modal.confirm({
-                title: "解绑设备",
-                content: `确认解除后缀为 ${row.code_suffix} 的激活码设备绑定？解绑后用户需要在新设备重新激活绑定。`,
-                okText: "解绑",
-                cancelText: "取消",
+                title: t("codes.unbindDevice"),
+                content: t("codes.unbindConfirm", { suffix: row.code_suffix }),
+                okText: t("common.unbind"),
+                cancelText: t("common.cancel"),
                 onOk: async () => {
                   await apiRequest(`/api/admin/codes/${row.id}/unbind-device`, { method: "PATCH" });
-                  message.success("已解绑");
+                  message.success(t("common.unbind"));
                   actionRef.current?.reload();
                 }
               });
             }}
           >
-            解绑
+            {t("common.unbind")}
           </Button>
           <Button
             size="small"
             style={row.disabled_at ? ENABLE_BUTTON_STYLE : DISABLE_BUTTON_STYLE}
             type="link"
             icon={row.disabled_at ? <CheckCircleOutlined /> : <StopOutlined />}
-            aria-label={row.disabled_at ? "启用激活码" : "禁用激活码"}
+            aria-label={row.disabled_at ? t("codes.enableCode") : t("codes.disableCode")}
             disabled={row.status === CODE_STATUS.DELETED}
             onClick={() => {
               const disabled = !row.disabled_at;
               modal.confirm({
-                title: disabled ? "禁用激活码" : "启用激活码",
+                title: disabled ? t("codes.disableCode") : t("codes.enableCode"),
                 content: disabled
-                  ? `禁用后缀为 ${row.code_suffix} 的激活码后，客户端激活、校验和解绑会失败。`
-                  : `确认启用后缀为 ${row.code_suffix} 的激活码？`,
-                okText: disabled ? "禁用" : "启用",
+                  ? t("codes.disableConfirm", { suffix: row.code_suffix })
+                  : t("codes.enableConfirm", { suffix: row.code_suffix }),
+                okText: disabled ? t("common.disable") : t("common.enable"),
                 okButtonProps: {
                   style: disabled ? DISABLE_CONFIRM_BUTTON_STYLE : ENABLE_CONFIRM_BUTTON_STYLE
                 },
-                cancelText: "取消",
+                cancelText: t("common.cancel"),
                 onOk: async () => {
                   await apiRequest(`/api/admin/codes/${row.id}/status`, {
                     method: "PATCH",
@@ -156,37 +158,37 @@ export function CodesPage() {
                       status: disabled ? CODE_TOGGLE_STATUS.DISABLED : CODE_TOGGLE_STATUS.ENABLED
                     })
                   });
-                  message.success(disabled ? "已禁用" : "已启用");
+                  message.success(disabled ? t("common.disabled") : t("common.enabled"));
                   actionRef.current?.reload();
                 }
               });
             }}
           >
-            {row.disabled_at ? "启用" : "禁用"}
+            {row.disabled_at ? t("common.enable") : t("common.disable")}
           </Button>
           <Button
             danger
             size="small"
             type="link"
             icon={<DeleteOutlined />}
-            aria-label="删除激活码"
+            aria-label={t("codes.deleteCode")}
             disabled={row.status === CODE_STATUS.DELETED}
             onClick={() => {
               modal.confirm({
-                title: "删除激活码",
-                content: `确认删除后缀为 ${row.code_suffix} 的激活码？`,
-                okText: "删除",
+                title: t("codes.deleteCode"),
+                content: t("codes.deleteConfirm", { suffix: row.code_suffix }),
+                okText: t("common.delete"),
                 okButtonProps: { danger: true },
-                cancelText: "取消",
+                cancelText: t("common.cancel"),
                 onOk: async () => {
                   await apiRequest(`/api/admin/codes/${row.id}`, { method: "DELETE" });
-                  message.success("已删除");
+                  message.success(t("common.deleted"));
                   actionRef.current?.reload();
                 }
               });
             }}
           >
-            删除
+            {t("common.delete")}
           </Button>
         </Space>
       )
@@ -213,14 +215,14 @@ export function CodesPage() {
       tableAlertOptionRender={false}
       toolBarRender={() => [
         <Space key="selected-actions" size={8} wrap>
-          <Typography.Text type={selectedCount > 0 ? undefined : "secondary"}>已选择 {selectedCount} 项</Typography.Text>
+          <Typography.Text type={selectedCount > 0 ? undefined : "secondary"}>{t("codes.selected", { count: selectedCount })}</Typography.Text>
           <Button
             size="small"
             icon={<CheckCircleOutlined />}
             disabled={selectedCount === 0}
             onClick={() => bulkUpdateCodes(CODE_BULK_ACTION.ENABLE, selectedRowKeys)}
           >
-            批量启用
+            {t("codes.bulkEnable")}
           </Button>
           <Button
             size="small"
@@ -229,7 +231,7 @@ export function CodesPage() {
             disabled={selectedCount === 0}
             onClick={() => bulkUpdateCodes(CODE_BULK_ACTION.DISABLE, selectedRowKeys)}
           >
-            批量禁用
+            {t("codes.bulkDisable")}
           </Button>
           <Button
             danger
@@ -238,10 +240,10 @@ export function CodesPage() {
             disabled={selectedCount === 0}
             onClick={() => bulkUpdateCodes(CODE_BULK_ACTION.DELETE, selectedRowKeys)}
           >
-            批量删除
+            {t("codes.bulkDelete")}
           </Button>
           <Button size="small" icon={<CloseOutlined />} disabled={selectedCount === 0} onClick={() => setSelectedRowKeys([])}>
-            取消选择
+            {t("codes.clearSelection")}
           </Button>
         </Space>
       ]}
@@ -259,7 +261,7 @@ export function CodesPage() {
           );
           return { data: data.items, total: data.total, success: true };
         } catch (error) {
-          message.error(error instanceof Error ? error.message : "加载失败");
+          message.error(error instanceof Error ? error.message : t("common.loadingFailed"));
           return { data: [], total: 0, success: false };
         }
       }}
@@ -268,14 +270,14 @@ export function CodesPage() {
 
   function bulkUpdateCodes(action: CodeBulkAction, keys: React.Key[]) {
     if (keys.length === 0) {
-      message.warning("请先选择激活码");
+      message.warning(t("codes.selectFirst"));
       return;
     }
     const actionText =
-      action === CODE_BULK_ACTION.DELETE ? "删除" : action === CODE_BULK_ACTION.DISABLE ? "禁用" : "启用";
+      action === CODE_BULK_ACTION.DELETE ? t("common.delete") : action === CODE_BULK_ACTION.DISABLE ? t("common.disable") : t("common.enable");
     modal.confirm({
-      title: `批量${actionText}激活码`,
-      content: `确认${actionText}选中的 ${keys.length} 个激活码？`,
+      title: t("codes.bulkTitle", { action: actionText }),
+      content: t("codes.bulkConfirm", { action: actionText, count: keys.length }),
       okText: actionText,
       okButtonProps:
         action === CODE_BULK_ACTION.DELETE
@@ -283,7 +285,7 @@ export function CodesPage() {
           : action === CODE_BULK_ACTION.DISABLE
             ? { style: DISABLE_CONFIRM_BUTTON_STYLE }
             : undefined,
-      cancelText: "取消",
+      cancelText: t("common.cancel"),
       onOk: async () => {
         const result = await apiRequest<{ action: string; requested: number; updated: number }>("/api/admin/codes/bulk", {
           method: "POST",
@@ -292,7 +294,7 @@ export function CodesPage() {
             ids: keys.map((key) => Number(key))
           })
         });
-        message.success(`已${actionText} ${result.updated} 个激活码`);
+        message.success(t("codes.bulkSucceeded", { action: actionText, count: result.updated }));
         setSelectedRowKeys([]);
         actionRef.current?.reload();
       }
