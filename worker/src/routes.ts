@@ -33,6 +33,21 @@ export function createApi() {
     return c.json(ok({ token, admin }));
   });
 
+  api.post("/recovery/admin-password", async (c) => {
+    const body = await readJson(c.req.raw);
+    const username = requireString(body.username, "username");
+    const recoveryPassword = requireString(body.recovery_password, "recovery_password");
+    const newPassword = requireString(body.new_password, "new_password");
+    const repo = new Repository(c.env.DB);
+    const service = new LicenseService(repo, c.env);
+    const result = await service.resetAdminPassword({
+      username,
+      recoveryPassword,
+      newPassword
+    });
+    return c.json(ok(result));
+  });
+
   api.use("/admin/*", requireAdmin);
 
   api.get("/admin/me", (c) => c.json(ok({ admin: c.get("admin") })));

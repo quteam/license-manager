@@ -9,6 +9,7 @@
 - `admin/src/routes.tsx`：后台菜单、页面路径和页面组件配置，业务页面组件使用 `React.lazy` 按需加载。
 - `admin/src/components/Login.tsx`：登录页。
 - `admin/src/components/ChangePasswordModal.tsx`：修改密码弹窗。
+- `admin/src/components/ResetPasswordModal.tsx`：登录页重设密码弹窗。
 - `admin/src/pages/`：业务页面，每个页面一个文件。
 - `admin/src/hooks/`：跨页面复用的前端数据加载逻辑。
 - `admin/src/shared/`：前端展示工具、参数处理和通用类型。
@@ -38,6 +39,7 @@
 - 后台菜单采用 Ant Design Pro 混合布局和 group 侧边菜单，工作台为一级入口，“应用管理”“激活码”“生成激活码”归入“授权管理”，“操作日志”归入“审计管理”，“接入文档”和“Playground”归入“开发支持”。
 - 页面级 `PageContainer` 由 `Shell` 统一承载，除仪表盘外包含页面标题和面包屑；业务页面默认只渲染页面内容，不再重复包裹 `PageContainer`。
 - 管理后台可见文案统一走 `admin/src/i18n/`，支持中文和英文；默认语言跟随系统语言，用户切换后写入浏览器本地存储。
+- 登录页提供忘记密码入口，通过重设密码弹窗调用 `/api/recovery/admin-password`，请求体提交用户名、恢复密钥和新密码。
 - 日期展示保持 `YYYY-MM-DD HH:mm:ss` 风格，优先复用 `shared/format.tsx`。
 - 应用管理页默认只展示应用列表；新增和修改应用使用弹窗承载表单，应用描述不必填，创建或更换后的 `app_secret` 使用一次性弹窗展示；应用使用说明用弹窗展示并提供可复制代码，代码中不得回显 `app_secret`；删除应用和更换密钥需二次确认。
 - 接入文档页提供客户端接口说明、接口流程图、可复制调用示例和现成 demo；Playground 页提供在线真实接口调用，不保存或回显 `app_secret`，调用真实客户端接口时需要提示会写入日志或改变激活状态。

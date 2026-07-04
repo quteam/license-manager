@@ -64,6 +64,8 @@ pnpm wrangler secret put ADMIN_BOOTSTRAP_PASSWORD --config wrangler.production.t
 
 - `ADMIN_BOOTSTRAP_USERNAME`
 
+`ADMIN_BOOTSTRAP_PASSWORD` 同时用于忘记管理员密码时的恢复密钥，生产环境必须设置为高强度随机值并仅通过 Wrangler secret 管理。
+
 ## 执行远程迁移
 
 ```bash
@@ -88,6 +90,7 @@ pnpm deploy
 - `worker/wrangler.production.toml` 的 `[env.production].routes` 已包含生产自定义域名。
 - `worker/wrangler.production.toml` 的 `[env.production.vars]` 已配置生产 bootstrap 用户名。
 - 生产密钥已通过 `wrangler secret put --config wrangler.production.toml --env production` 设置。
+- `ADMIN_BOOTSTRAP_PASSWORD` 已保存为高强度私密恢复密钥。
 - 远程迁移已执行。
 - 前端构建产物能被 Worker assets 托管。
 - 生产环境不使用弱默认 bootstrap 密码。

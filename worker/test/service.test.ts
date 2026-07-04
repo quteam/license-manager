@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { APP_STATUS, CODE_STATUS, LOG_ACTION, LOG_RESULT, type LogAction, type LogResult } from "../src/constants";
-import { hmacSha256, normalizeCode } from "../src/crypto";
+import { hashPassword, hmacSha256, normalizeCode } from "../src/crypto";
 import { Repository } from "../src/repository";
 import { LicenseService } from "../src/service";
 import { ApiError, type AppRow, type Bindings, type CodeDetailRow, type ErrorCode } from "../src/types";
@@ -9,7 +9,9 @@ const env = {
   CODE_HMAC_SECRET: "code-secret",
   APP_SECRET_HMAC_SECRET: "app-secret-secret",
   DEVICE_HMAC_SECRET: "device-secret",
-  JWT_SECRET: "jwt-secret"
+  JWT_SECRET: "jwt-secret",
+  ADMIN_BOOTSTRAP_USERNAME: "admin",
+  ADMIN_BOOTSTRAP_PASSWORD: "recovery-secret"
 } as Bindings;
 
 describe("LicenseService device unbind flow", () => {
@@ -89,6 +91,46 @@ describe("LicenseService device unbind flow", () => {
   });
 });
 
+describe("LicenseService admin password reset", () => {
+  let repo: MemoryRepo;
+  let service: LicenseService;
+
+  beforeEach(async () => {
+    repo = await MemoryRepo.create();
+    service = new LicenseService(repo as unknown as Repository, env);
+  });
+
+  it("resets the bootstrap admin password when the recovery password is valid", async () => {
+    const result = await service.resetAdminPassword({
+      username: "admin",
+      recoveryPassword: "recovery-secret",
+      newPassword: "new-admin-password"
+    });
+
+    expect(result).toEqual({ reset: true });
+    await expect(service.authenticateAdmin("admin", "old-admin-password")).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+    await expect(service.authenticateAdmin("admin", "new-admin-password")).resolves.toEqual({
+      id: repo.admin.id,
+      username: "admin"
+    });
+  });
+
+  it("rejects invalid recovery password without changing the admin password", async () => {
+    await expect(
+      service.resetAdminPassword({
+        username: "admin",
+        recoveryPassword: "wrong-secret",
+        newPassword: "new-admin-password"
+      })
+    ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+
+    await expect(service.authenticateAdmin("admin", "old-admin-password")).resolves.toEqual({
+      id: repo.admin.id,
+      username: "admin"
+    });
+  });
+});
+
 type LogInput = {
   codeId?: number;
   appDbId?: number;
@@ -106,10 +148,30 @@ class MemoryRepo {
   readonly logs: LogInput[] = [];
   readonly app: AppRow;
   readonly code: CodeDetailRow;
+  readonly admin: {
+    id: number;
+    username: string;
+    password_hash: string;
+    password_salt: string;
+    created_at: string;
+    updated_at: string;
+  };
 
-  private constructor(app: AppRow, code: CodeDetailRow) {
+  private constructor(
+    app: AppRow,
+    code: CodeDetailRow,
+    admin: {
+      id: number;
+      username: string;
+      password_hash: string;
+      password_salt: string;
+      created_at: string;
+      updated_at: string;
+    }
+  ) {
     this.app = app;
     this.code = code;
+    this.admin = admin;
   }
 
   static async create() {
@@ -149,7 +211,34 @@ class MemoryRepo {
       plan_name: "月卡",
       duration_days: 30
     };
-    return new MemoryRepo(app, code);
+    const passwordRecord = await hashPassword("old-admin-password");
+    const admin = {
+      id: 1,
+      username: "admin",
+      password_hash: passwordRecord.hash,
+      password_salt: passwordRecord.salt,
+      created_at: "2026-06-25T00:00:00.000Z",
+      updated_at: "2026-06-25T00:00:00.000Z"
+    };
+    return new MemoryRepo(app, code, admin);
+  }
+
+  async getAdminByUsername(username: string) {
+    return this.admin.username === username ? this.admin : null;
+  }
+
+  async getAdminCredentialsById(id: number) {
+    return this.admin.id === id ? this.admin : null;
+  }
+
+  async updateAdminPassword(input: { adminId: number; passwordHash: string; passwordSalt: string }) {
+    if (this.admin.id !== input.adminId) {
+      return false;
+    }
+    this.admin.password_hash = input.passwordHash;
+    this.admin.password_salt = input.passwordSalt;
+    this.admin.updated_at = "2026-06-25T00:00:01.000Z";
+    return true;
   }
 
   async getAppByPublicId(appId: string) {

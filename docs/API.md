@@ -102,6 +102,26 @@
 }
 ```
 
+### 重设管理员密码
+
+`POST /api/recovery/admin-password`
+
+该接口用于无法登录时重设 bootstrap 管理员密码，不属于 `/api/admin/*`，但必须提供生产环境中配置的 `ADMIN_BOOTSTRAP_PASSWORD` 作为恢复密钥。
+
+```json
+{
+  "username": "admin",
+  "recovery_password": "bootstrap-secret",
+  "new_password": "new-password"
+}
+```
+
+约束：
+
+- `username` 必须匹配 `ADMIN_BOOTSTRAP_USERNAME`。
+- `recovery_password` 必须匹配 `ADMIN_BOOTSTRAP_PASSWORD`。
+- `new_password` 至少 8 位，且不能与恢复密钥相同。
+
 ### 面板统计
 
 `GET /api/admin/dashboard`

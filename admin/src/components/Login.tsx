@@ -1,10 +1,12 @@
 import { GlobalOutlined, LockOutlined, UserOutlined } from "@ant-design/icons";
 import { ProForm, ProFormText } from "@ant-design/pro-components";
-import { App as AntApp, Select } from "antd";
+import { App as AntApp, Button, Select } from "antd";
+import { useState } from "react";
 import { apiRequest } from "../api";
 import logoUrl from "../assets/logo.webp";
 import { useI18n } from "../i18n";
 import type { AdminUser } from "../types";
+import { ResetPasswordModal } from "./ResetPasswordModal";
 
 type LoginProps = {
   onLogin: (token: string, admin: AdminUser) => void;
@@ -13,6 +15,7 @@ type LoginProps = {
 export function Login({ onLogin }: LoginProps) {
   const { message } = AntApp.useApp();
   const { language, setLanguage, t } = useI18n();
+  const [resetOpen, setResetOpen] = useState(false);
 
   return (
     <main className="flex min-h-screen items-start justify-center bg-[#f5f7fb] px-4 py-10 pt-[20vh]">
@@ -73,7 +76,13 @@ export function Login({ onLogin }: LoginProps) {
             rules={[{ required: true, message: t("auth.passwordRequired") }]}
           />
         </ProForm>
+        <div className="mt-3 text-right">
+          <Button type="link" className="px-0!" onClick={() => setResetOpen(true)}>
+            {t("auth.forgotPassword")}
+          </Button>
+        </div>
       </section>
+      <ResetPasswordModal open={resetOpen} onClose={() => setResetOpen(false)} />
     </main>
   );
 }

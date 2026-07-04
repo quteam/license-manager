@@ -86,6 +86,41 @@ export class LicenseService {
     };
   }
 
+  async resetAdminPassword(input: { username: string; recoveryPassword: string; newPassword: string }) {
+    const bootstrapUsername = this.env.ADMIN_BOOTSTRAP_USERNAME;
+    const bootstrapPassword = this.env.ADMIN_BOOTSTRAP_PASSWORD;
+    if (!bootstrapUsername || !bootstrapPassword) {
+      throw new ApiError(403, "FORBIDDEN", "Password reset is not configured");
+    }
+    if (input.newPassword.length < 8) {
+      throw new ApiError(400, "BAD_REQUEST", "New password must be at least 8 characters");
+    }
+    if (input.newPassword === input.recoveryPassword) {
+      throw new ApiError(400, "BAD_REQUEST", "New password must be different from recovery password");
+    }
+    if (input.username !== bootstrapUsername || !timingSafeEqual(input.recoveryPassword, bootstrapPassword)) {
+      throw new ApiError(401, "UNAUTHORIZED", "Invalid username or recovery password");
+    }
+
+    await this.ensureBootstrapAdmin();
+    const admin = await this.repo.getAdminByUsername(input.username);
+    if (!admin) {
+      throw new ApiError(404, "NOT_FOUND", "Admin not found");
+    }
+    const passwordRecord = await hashPassword(input.newPassword);
+    const updated = await this.repo.updateAdminPassword({
+      adminId: admin.id,
+      passwordHash: passwordRecord.hash,
+      passwordSalt: passwordRecord.salt
+    });
+    if (!updated) {
+      throw new ApiError(404, "NOT_FOUND", "Admin not found");
+    }
+    return {
+      reset: true
+    };
+  }
+
   async createApp(input: { name: string; description?: string; platform: string; status?: AppStatus }) {
     const appId = `app_${generateRandomToken(12)}`;
     const appSecret = `sec_${generateRandomToken(32)}`;

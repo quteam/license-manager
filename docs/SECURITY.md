@@ -8,6 +8,7 @@
 - 设备指纹使用 HMAC 后入库。
 - 管理员密码必须使用随机 salt 和哈希，不得明文保存。
 - JWT 密钥、HMAC 密钥和生产管理员密码必须通过 Wrangler secret 管理。
+- `ADMIN_BOOTSTRAP_PASSWORD` 同时作为无法登录时的管理员密码恢复密钥，必须使用高强度随机值并只保存在 Wrangler secret 或等价私密配置中。
 - `.dev.vars`、`wrangler.production.toml`、真实密钥、生产账号密码和生产数据库 ID 不得提交；公开 `worker/wrangler.toml` 只保留本地开发占位配置。
 
 ## 必要密钥
@@ -38,6 +39,7 @@ pnpm wrangler secret put ADMIN_BOOTSTRAP_PASSWORD --config wrangler.production.t
 ## 接口安全
 
 - `/api/admin/*` 必须通过 Bearer Token 鉴权。
+- `/api/recovery/admin-password` 不属于 `/api/admin/*`，仅用于登录失败后的管理员密码恢复；请求体必须校验 bootstrap 用户名和 `ADMIN_BOOTSTRAP_PASSWORD`，不得通过 URL 传递恢复密钥。
 - 客户端接口必须同时校验 `app_id` 和 `app_secret`。
 - 禁用状态的应用不得激活、校验或解绑。
 - 所有用户输入必须经过基础类型和范围校验。

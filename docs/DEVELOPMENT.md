@@ -29,6 +29,8 @@ cp worker/.dev.vars.example worker/.dev.vars
 - `ADMIN_BOOTSTRAP_USERNAME`
 - `ADMIN_BOOTSTRAP_PASSWORD`
 
+`ADMIN_BOOTSTRAP_PASSWORD` 除首次初始化外，也用于本地忘记管理员密码时的恢复密钥。
+
 `worker/.dev.vars` 不得提交。
 
 `worker/wrangler.toml` 顶层配置用于本地开发：
