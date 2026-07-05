@@ -103,7 +103,7 @@ Install dependencies and prepare local secrets:
 
 ```bash
 pnpm install
-cp worker/.dev.vars.example worker/.dev.vars
+pnpm env:init
 ```
 
 Initialize local D1 and start the development environment:
@@ -130,6 +130,8 @@ Local development reads the public top-level configuration in `worker/wrangler.t
 
 ```bash
 pnpm dev               # Start Worker and admin console together
+pnpm env:init          # Generate local Worker secrets
+pnpm env:check:production # Check production secret names
 pnpm build             # Build admin console and Worker
 pnpm type-check        # Run backend and frontend type checks
 pnpm test              # Run Worker tests
@@ -158,10 +160,12 @@ Before the first deployment:
 2. Copy `worker/wrangler.production.example.toml` to the local private `worker/wrangler.production.toml`.
 3. Fill in the Worker name, custom domain, production D1 `database_id`, and bootstrap username in the production config.
 4. Use Wrangler secrets to set `JWT_SECRET`, `CODE_HMAC_SECRET`, `APP_SECRET_HMAC_SECRET`, `DEVICE_HMAC_SECRET`, and `ADMIN_BOOTSTRAP_PASSWORD`.
-5. Apply remote D1 migrations.
-6. Build and deploy.
+5. Check production secret names.
+6. Apply remote D1 migrations.
+7. Build and deploy.
 
 ```bash
+pnpm env:check:production
 pnpm db:migrate:remote
 pnpm deploy
 ```

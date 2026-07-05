@@ -11,19 +11,23 @@
 - `ADMIN_BOOTSTRAP_PASSWORD` 同时作为无法登录时的管理员密码恢复密钥，必须使用高强度随机值并只保存在 Wrangler secret 或等价私密配置中。
 - `.dev.vars`、`wrangler.production.toml`、真实密钥、生产账号密码和生产数据库 ID 不得提交；公开 `worker/wrangler.toml` 只保留本地开发占位配置。
 
-## 必要密钥
+## 环境变量校验
 
-Worker 需要以下密钥：
+Worker 运行时会校验以下核心加密密钥：
 
 - `JWT_SECRET`
 - `CODE_HMAC_SECRET`
 - `APP_SECRET_HMAC_SECRET`
 - `DEVICE_HMAC_SECRET`
-- `ADMIN_BOOTSTRAP_PASSWORD`
 
-可选或环境变量：
+这些密钥必须存在，且不得使用示例占位值。
+
+Bootstrap 初始化和密码恢复使用以下变量：
 
 - `ADMIN_BOOTSTRAP_USERNAME`
+- `ADMIN_BOOTSTRAP_PASSWORD`
+
+两者必须成对配置。生产环境如果启用 bootstrap 初始化或密码恢复，`ADMIN_BOOTSTRAP_PASSWORD` 必须通过 Wrangler secret 管理，并设置为高强度随机值。
 
 生产环境使用：
 

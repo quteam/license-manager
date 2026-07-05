@@ -103,7 +103,7 @@ Browser/Admin
 
 ```bash
 pnpm install
-cp worker/.dev.vars.example worker/.dev.vars
+pnpm env:init
 ```
 
 初始化本地 D1 并启动开发环境：
@@ -130,6 +130,8 @@ pnpm dev
 
 ```bash
 pnpm dev               # 同时启动 Worker 和管理后台
+pnpm env:init          # 生成本地 Worker 密钥
+pnpm env:check:production # 检查生产 secret 名称
 pnpm build             # 构建管理后台和 Worker
 pnpm type-check        # 运行前后端类型检查
 pnpm test              # 运行 Worker 测试
@@ -158,10 +160,12 @@ pnpm test
 2. 从 `worker/wrangler.production.example.toml` 复制生成本地私有 `worker/wrangler.production.toml`。
 3. 在生产配置中填写 Worker 名称、自定义域名、生产 D1 `database_id` 和 bootstrap 用户名。
 4. 使用 Wrangler secrets 写入 `JWT_SECRET`、`CODE_HMAC_SECRET`、`APP_SECRET_HMAC_SECRET`、`DEVICE_HMAC_SECRET` 和 `ADMIN_BOOTSTRAP_PASSWORD`。
-5. 执行远程 D1 migration。
-6. 构建并部署。
+5. 检查生产 secret 名称。
+6. 执行远程 D1 migration。
+7. 构建并部署。
 
 ```bash
+pnpm env:check:production
 pnpm db:migrate:remote
 pnpm deploy
 ```

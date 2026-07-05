@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { requireEnv } from "./config";
+import { requireEnv, validateEnv } from "./config";
 import {
   APP_STATUS,
   CODE_BULK_ACTION,
@@ -19,6 +19,11 @@ import { ApiError, Bindings, Variables } from "./types";
 
 export function createApi() {
   const api = new Hono<{ Bindings: Bindings; Variables: Variables }>();
+
+  api.use("*", async (c, next) => {
+    validateEnv(c.env);
+    await next();
+  });
 
   api.get("/health", (c) => c.json(ok({ status: "ok" })));
 

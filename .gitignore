@@ -1,7 +1,9 @@
 node_modules
 .wrangler
-.dev.vars
-wrangler.production.toml
+**/.dev.vars
+**/wrangler.production.toml
+!**/.dev.vars.example
+!**/wrangler.production.example.toml
 dist
 admin/dist
 worker/dist

@@ -14,7 +14,13 @@ pnpm install
 
 ## 本地配置
 
-本地 Worker 需要 `worker/.dev.vars` 提供密钥。可以从 `worker/.dev.vars.example` 复制并按需修改：
+本地 Worker 需要 `worker/.dev.vars` 提供密钥。推荐自动生成随机本地密钥：
+
+```bash
+pnpm env:init
+```
+
+如果需要手动配置，也可以从 `worker/.dev.vars.example` 复制并按需修改：
 
 ```bash
 cp worker/.dev.vars.example worker/.dev.vars
@@ -29,7 +35,7 @@ cp worker/.dev.vars.example worker/.dev.vars
 - `ADMIN_BOOTSTRAP_USERNAME`
 - `ADMIN_BOOTSTRAP_PASSWORD`
 
-`ADMIN_BOOTSTRAP_PASSWORD` 除首次初始化外，也用于本地忘记管理员密码时的恢复密钥。
+运行时会校验核心加密密钥是否存在且没有使用示例占位值。`ADMIN_BOOTSTRAP_USERNAME` 和 `ADMIN_BOOTSTRAP_PASSWORD` 必须成对配置；`ADMIN_BOOTSTRAP_PASSWORD` 除首次初始化外，也用于本地忘记管理员密码时的恢复密钥。
 
 `worker/.dev.vars` 不得提交。
 
@@ -85,6 +91,8 @@ pnpm type-check
 pnpm test
 pnpm db:migrate:local
 pnpm db:migrate:remote
+pnpm env:init
+pnpm env:check:production
 ```
 
 Worker：
