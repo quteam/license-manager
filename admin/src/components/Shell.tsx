@@ -1,17 +1,13 @@
-import {
-  GlobalOutlined,
-  LockOutlined,
-  LogoutOutlined,
-  UserOutlined
-} from "@ant-design/icons";
+import { LockOutlined, LogoutOutlined, UserOutlined } from "@ant-design/icons";
 import { PageContainer, ProLayout, type ProLayoutProps } from "@ant-design/pro-components";
-import { Dropdown, Select, Skeleton, Space } from "antd";
+import { Dropdown, Skeleton, Space } from "antd";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import logoUrl from "../assets/logo.webp";
 import { useI18n } from "../i18n";
 import { defaultPage, getAdminPageRoutes, getMenuRoutes, getRouteMap, pathToPage, type PageKey } from "../routes";
 import type { AdminUser } from "../types";
 import { ChangePasswordModal } from "./ChangePasswordModal";
+import { LanguageDropdown } from "./LanguageDropdown";
 
 function normalizePath(pathname: string): string {
   const normalized = pathname.replace(/\/+$/, "");
@@ -50,7 +46,7 @@ type ShellProps = {
 };
 
 export function Shell({ admin, onLogout }: ShellProps) {
-  const { language, setLanguage, t } = useI18n();
+  const { t } = useI18n();
   const adminPageRoutes = useMemo(() => getAdminPageRoutes(t), [t]);
   const routeMap = useMemo(() => getRouteMap(adminPageRoutes), [adminPageRoutes]);
   const menuRoutes = useMemo(() => getMenuRoutes(adminPageRoutes, t), [adminPageRoutes, t]);
@@ -144,21 +140,7 @@ export function Shell({ admin, onLogout }: ShellProps) {
             </Dropdown>
           )
         }}
-        actionsRender={() => [
-          <Select
-            key="language"
-            size="small"
-            aria-label={t("common.language")}
-            value={language}
-            suffixIcon={<GlobalOutlined />}
-            popupMatchSelectWidth={false}
-            options={[
-              { value: "zh", label: t("common.chinese") },
-              { value: "en", label: t("common.english") }
-            ]}
-            onChange={setLanguage}
-          />
-        ]}
+        actionsRender={() => [<LanguageDropdown key="language" />]}
       >
         <PageContainer title={page === defaultPage ? false : currentRoute.name}>
           <Suspense fallback={<Skeleton active paragraph={{ rows: 10 }} />}>{currentPage}</Suspense>

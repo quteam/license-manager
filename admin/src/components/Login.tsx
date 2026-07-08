@@ -1,11 +1,12 @@
-import { GlobalOutlined, LockOutlined, UserOutlined } from "@ant-design/icons";
+import { LockOutlined, UserOutlined } from "@ant-design/icons";
 import { ProForm, ProFormText } from "@ant-design/pro-components";
-import { App as AntApp, Button, Select } from "antd";
+import { App as AntApp, Button } from "antd";
 import { useState } from "react";
 import { apiRequest } from "../api";
 import logoUrl from "../assets/logo.webp";
 import { useI18n } from "../i18n";
 import type { AdminUser } from "../types";
+import { LanguageDropdown } from "./LanguageDropdown";
 import { ResetPasswordModal } from "./ResetPasswordModal";
 
 type LoginProps = {
@@ -14,24 +15,13 @@ type LoginProps = {
 
 export function Login({ onLogin }: LoginProps) {
   const { message } = AntApp.useApp();
-  const { language, setLanguage, t } = useI18n();
+  const { t } = useI18n();
   const [resetOpen, setResetOpen] = useState(false);
 
   return (
     <main className="flex min-h-screen items-start justify-center bg-[#f5f7fb] px-4 py-10 pt-[20vh]">
       <div className="absolute right-4 top-4">
-        <Select
-          size="small"
-          aria-label={t("common.language")}
-          value={language}
-          suffixIcon={<GlobalOutlined />}
-          popupMatchSelectWidth={false}
-          options={[
-            { value: "zh", label: t("common.chinese") },
-            { value: "en", label: t("common.english") }
-          ]}
-          onChange={setLanguage}
-        />
+        <LanguageDropdown />
       </div>
       <section className="w-full max-w-[400px] rounded-lg border border-[#e5e7eb] bg-white px-6 py-8 shadow-[0_18px_45px_rgba(15,23,42,0.08)] sm:px-8">
         <div className="mb-7 text-center">
