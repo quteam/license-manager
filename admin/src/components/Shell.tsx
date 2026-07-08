@@ -1,13 +1,14 @@
 import { LockOutlined, LogoutOutlined, UserOutlined } from "@ant-design/icons";
 import { PageContainer, ProLayout, type ProLayoutProps } from "@ant-design/pro-components";
 import { Dropdown, Skeleton, Space } from "antd";
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState, type ReactNode } from "react";
 import logoUrl from "../assets/logo.webp";
 import { useI18n } from "../i18n";
 import { defaultPage, getAdminPageRoutes, getMenuRoutes, getRouteMap, pathToPage, type PageKey } from "../routes";
 import type { AdminUser } from "../types";
 import { ChangePasswordModal } from "./ChangePasswordModal";
 import { LanguageDropdown } from "./LanguageDropdown";
+import { PageTitleExtraProvider } from "./PageTitleExtraContext";
 
 function normalizePath(pathname: string): string {
   const normalized = pathname.replace(/\/+$/, "");
@@ -52,8 +53,25 @@ export function Shell({ admin, onLogout }: ShellProps) {
   const menuRoutes = useMemo(() => getMenuRoutes(adminPageRoutes, t), [adminPageRoutes, t]);
   const [page, setPage] = useState<PageKey>(() => getPageFromLocation());
   const [passwordOpen, setPasswordOpen] = useState(false);
+  const [pageTitleExtra, setPageTitleExtra] = useState<ReactNode | null>(null);
   const currentRoute = useMemo(() => routeMap[page], [page, routeMap]);
   const currentPage = currentRoute.element;
+  const pageTitle = useMemo(() => {
+    if (page === defaultPage) {
+      return false;
+    }
+
+    if (!pageTitleExtra) {
+      return currentRoute.name;
+    }
+
+    return (
+      <Space align="center" size={12} wrap>
+        <span>{currentRoute.name}</span>
+        {pageTitleExtra}
+      </Space>
+    );
+  }, [currentRoute.name, page, pageTitleExtra]);
   const breadcrumbItems = useMemo(
     () => [
       { title: t("common.home") },
@@ -142,8 +160,10 @@ export function Shell({ admin, onLogout }: ShellProps) {
         }}
         actionsRender={() => [<LanguageDropdown key="language" />]}
       >
-        <PageContainer title={page === defaultPage ? false : currentRoute.name}>
-          <Suspense fallback={<Skeleton active paragraph={{ rows: 10 }} />}>{currentPage}</Suspense>
+        <PageContainer title={pageTitle}>
+          <PageTitleExtraProvider value={setPageTitleExtra}>
+            <Suspense fallback={<Skeleton active paragraph={{ rows: 10 }} />}>{currentPage}</Suspense>
+          </PageTitleExtraProvider>
         </PageContainer>
       </ProLayout>
       <ChangePasswordModal

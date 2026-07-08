@@ -6,9 +6,11 @@ import {
   PlayCircleOutlined
 } from "@ant-design/icons";
 import { ProCard } from "@ant-design/pro-components";
-import { Alert, App as AntApp, Button, Descriptions, Select, Space, Steps, Tabs, Tag, Typography } from "antd";
+import { Alert, App as AntApp, Button, Descriptions, Select, Space, Steps, Tabs, Typography } from "antd";
 import { useEffect, useMemo, useState } from "react";
+import { usePageTitleExtra } from "../components/PageTitleExtraContext";
 import { useCatalogs } from "../hooks/useCatalogs";
+import { useI18n } from "../i18n";
 import { formatAppOptionLabel } from "../shared/appPlatform";
 import { CodeBlock } from "../shared/CodeBlock";
 import {
@@ -22,14 +24,14 @@ import {
   getClientActionFlows,
   getClientActions
 } from "../shared/licenseDocs";
-import { useI18n } from "../i18n";
 
 export function DocsPage() {
   const { t } = useI18n();
   const { apps } = useCatalogs();
+  const setPageTitleExtra = usePageTitleExtra();
   const [selectedAppId, setSelectedAppId] = useState<string>(() => apps[0]?.app_id ?? "app_xxx");
   const apiBaseUrl = window.location.origin;
-  const selectedApp = apps.find((app) => app.app_id === selectedAppId);
+  const appOptions = useMemo(() => apps.map((app) => ({ value: app.app_id, label: formatAppOptionLabel(app, t) })), [apps, t]);
   const clientActions = useMemo(() => getClientActions(t), [t]);
   const clientActionFlows = useMemo(() => getClientActionFlows(t), [t]);
   const tsDemo = useMemo(() => createTypeScriptDemo(selectedAppId, apiBaseUrl, t), [apiBaseUrl, selectedAppId, t]);
@@ -44,18 +46,30 @@ export function DocsPage() {
     }
   }, [apps, selectedAppId]);
 
+  const appSelect = useMemo(
+    () => (
+      <Select
+        aria-label={t("common.app")}
+        value={selectedAppId}
+        options={appOptions}
+        popupMatchSelectWidth={false}
+        className="min-w-56"
+        onChange={setSelectedAppId}
+      />
+    ),
+    [appOptions, selectedAppId, t]
+  );
+
+  useEffect(() => {
+    setPageTitleExtra?.(appSelect);
+    return () => {
+      setPageTitleExtra?.(null);
+    };
+  }, [appSelect, setPageTitleExtra]);
+
   return (
     <Space direction="vertical" className="w-full" size="large">
-      <ProCard
-        title={t("docs.clientAccess")}
-        extra={
-          selectedApp ? (
-            <Tag color="blue" className="mr-0">
-              {selectedApp.name}
-            </Tag>
-          ) : null
-        }
-      >
+      <ProCard title={t("docs.clientAccess")}>
         <Space direction="vertical" className="w-full" size="middle">
           <Alert
             showIcon
@@ -67,16 +81,7 @@ export function DocsPage() {
               <CopyableInline value={apiBaseUrl} label={t("docs.apiBaseUrl")} />
             </Descriptions.Item>
             <Descriptions.Item label={t("apps.appId")}>
-              <Space wrap>
-                <CopyableInline value={selectedAppId} label={t("apps.appId")} />
-                <Select
-                  value={selectedAppId}
-                  options={apps.map((app) => ({ value: app.app_id, label: formatAppOptionLabel(app, t) }))}
-                  popupMatchSelectWidth={false}
-                  className="min-w-56"
-                  onChange={setSelectedAppId}
-                />
-              </Space>
+              <CopyableInline value={selectedAppId} label={t("apps.appId")} />
             </Descriptions.Item>
             <Descriptions.Item label={t("docs.requestFormat")}>{t("docs.requestFormatValue")}</Descriptions.Item>
             <Descriptions.Item label={t("docs.responseFormat")}>{t("docs.responseFormatValue")}</Descriptions.Item>

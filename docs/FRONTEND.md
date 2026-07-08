@@ -38,6 +38,7 @@
 - 面板首页为默认入口，路径为 `/dashboard`。
 - 后台菜单采用 Ant Design Pro 混合布局和 group 侧边菜单，工作台为一级入口，“应用管理”“激活码”“生成激活码”归入“授权管理”，“操作日志”归入“审计管理”，“接入文档”和“Playground”归入“开发支持”。
 - 页面级 `PageContainer` 由 `Shell` 统一承载，除仪表盘外包含页面标题和面包屑；业务页面默认只渲染页面内容，不再重复包裹 `PageContainer`。
+- 页面需要在标题后展示局部控件时，通过 `components/PageTitleExtraContext.tsx` 注册标题附加内容，并在页面卸载时清理，不在业务页面重复创建 `PageContainer`。
 - 管理后台可见文案统一走 `admin/src/i18n/`，支持中文和英文；默认语言跟随系统语言，用户切换后写入浏览器本地存储。
 - 登录页提供忘记密码入口，通过重设密码弹窗调用 `/api/recovery/admin-password`，请求体提交用户名、恢复密钥和新密码。
 - 日期展示保持 `YYYY-MM-DD HH:mm:ss` 风格，优先复用 `shared/format.tsx`。
