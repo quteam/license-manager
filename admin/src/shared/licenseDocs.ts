@@ -154,6 +154,102 @@ export function unbindDevice(code, deviceFingerprint) {
 }`;
 }
 
+export function createTypeScriptDemo(appId: string, apiBaseUrl: string, t?: Translate) {
+  return `export type LicensePlan = {
+  code: string;
+  name: string;
+  duration_days: number;
+};
+
+export type LicenseData = {
+  valid: boolean;
+  device_bound: boolean;
+  app_id: string;
+  plan: LicensePlan;
+  activated_at: string | null;
+  expires_at: string | null;
+  remaining_seconds: number;
+  rebind_count: number;
+  max_rebinds: number;
+};
+
+type LicenseApiSuccess = {
+  ok: true;
+  data: LicenseData;
+};
+
+type LicenseApiFailure = {
+  ok: false;
+  error: {
+    code: string;
+    message: string;
+  };
+};
+
+type LicenseApiResponse = LicenseApiSuccess | LicenseApiFailure;
+
+export type LicenseClientConfig = {
+  apiBaseUrl: string;
+  appId: string;
+  appSecret: string;
+};
+
+type LicenseRequestBody = {
+  code: string;
+  device_fingerprint: string;
+};
+
+export class LicenseClient {
+  constructor(private readonly config: LicenseClientConfig) {}
+
+  activateLicense(code: string, deviceFingerprint: string) {
+    return this.requestLicense("/api/client/activate", {
+      code,
+      device_fingerprint: deviceFingerprint
+    });
+  }
+
+  verifyLicense(code: string, deviceFingerprint: string) {
+    return this.requestLicense("/api/client/verify", {
+      code,
+      device_fingerprint: deviceFingerprint
+    });
+  }
+
+  unbindDevice(code: string, deviceFingerprint: string) {
+    return this.requestLicense("/api/client/unbind-device", {
+      code,
+      device_fingerprint: deviceFingerprint
+    });
+  }
+
+  private async requestLicense(path: string, body: LicenseRequestBody): Promise<LicenseData> {
+    const response = await fetch(\`\${this.config.apiBaseUrl}\${path}\`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        app_id: this.config.appId,
+        app_secret: this.config.appSecret,
+        ...body
+      })
+    });
+    const payload = (await response.json()) as LicenseApiResponse;
+
+    if (!payload.ok) {
+      throw new Error(payload.error.message || payload.error.code || "${escapeJsString(t ? t("docs.errorFallback") : "请求失败")}");
+    }
+
+    return payload.data;
+  }
+}
+
+export const licenseClient = new LicenseClient({
+  apiBaseUrl: "${escapeJsString(apiBaseUrl)}",
+  appId: "${escapeJsString(appId)}",
+  appSecret: "${escapeJsString(t ? t("docs.secretPlaceholder") : "替换为创建应用时保存的 app_secret")}"
+});`;
+}
+
 export function createCurlDemo(action: ClientAction, appId: string, apiBaseUrl: string, t?: Translate) {
   return `curl -X POST '${escapeShellString(`${apiBaseUrl}${getClientPath(action)}`)}' \\
   -H 'Content-Type: application/json' \\

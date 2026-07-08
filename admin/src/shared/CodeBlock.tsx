@@ -2,7 +2,7 @@ import { CopyOutlined } from "@ant-design/icons";
 import { App as AntApp, Button, Typography } from "antd";
 import { useI18n } from "../i18n";
 
-export type CodeLanguage = "javascript" | "json" | "html" | "shell" | "text";
+export type CodeLanguage = "javascript" | "typescript" | "json" | "html" | "shell" | "text";
 
 type CodeBlockProps = {
   value: string;
@@ -61,9 +61,10 @@ function highlightCode(code: string, language: CodeLanguage) {
 function tokenizeLine(line: string, language: CodeLanguage) {
   switch (language) {
     case "javascript":
+    case "typescript":
       return tokenizeWithPattern(
         line,
-        /(\/\/.*|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|`(?:\\.|[^`\\])*`|\b(?:async|await|const|let|var|export|import|from|function|if|else|return|throw|new|try|catch|finally|class|extends)\b|\b(?:true|false|null|undefined)\b|\b\d+(?:\.\d+)?\b|[A-Za-z_$][\w$]*(?=\s*\())/g,
+        /(\/\/.*|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|`(?:\\.|[^`\\])*`|\b(?:async|await|const|let|var|export|import|from|function|if|else|return|throw|new|try|catch|finally|class|extends|type|interface|private|public|readonly)\b|\b(?:true|false|null|undefined)\b|\b\d+(?:\.\d+)?\b|[A-Za-z_$][\w$]*(?=\s*\())/g,
         getJavaScriptTokenClassName
       );
     case "json":
@@ -131,7 +132,7 @@ function getJavaScriptTokenClassName(token: string) {
   if (/^(true|false|null|undefined)$/.test(token)) {
     return "text-violet-300";
   }
-  if (/^(async|await|const|let|var|export|import|from|function|if|else|return|throw|new|try|catch|finally|class|extends)$/.test(token)) {
+  if (/^(async|await|const|let|var|export|import|from|function|if|else|return|throw|new|try|catch|finally|class|extends|type|interface|private|public|readonly)$/.test(token)) {
     return "text-sky-300";
   }
   return "text-yellow-200";

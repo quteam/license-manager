@@ -18,6 +18,7 @@ import {
   createJavaScriptDemo,
   createRequestPayload,
   createResponseExample,
+  createTypeScriptDemo,
   getClientActionFlows,
   getClientActions
 } from "../shared/licenseDocs";
@@ -31,6 +32,7 @@ export function DocsPage() {
   const selectedApp = apps.find((app) => app.app_id === selectedAppId);
   const clientActions = useMemo(() => getClientActions(t), [t]);
   const clientActionFlows = useMemo(() => getClientActionFlows(t), [t]);
+  const tsDemo = useMemo(() => createTypeScriptDemo(selectedAppId, apiBaseUrl, t), [apiBaseUrl, selectedAppId, t]);
   const jsDemo = useMemo(() => createJavaScriptDemo(selectedAppId, apiBaseUrl, t), [apiBaseUrl, selectedAppId, t]);
   const curlDemo = useMemo(() => createCurlDemo("activate", selectedAppId, apiBaseUrl, t), [apiBaseUrl, selectedAppId, t]);
   const htmlDemo = useMemo(() => createHtmlDemo(selectedAppId, apiBaseUrl, t), [apiBaseUrl, selectedAppId, t]);
@@ -113,6 +115,12 @@ export function DocsPage() {
       <ProCard title={t("docs.demos")}>
         <Tabs
           items={[
+            {
+              key: "typescript",
+              label: "TypeScript SDK",
+              icon: <FileTextOutlined />,
+              children: <CodeBlock value={tsDemo} title={t("docs.tsSdkTitle")} language="typescript" />
+            },
             {
               key: "javascript",
               label: "JavaScript SDK",
