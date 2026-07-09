@@ -2,7 +2,7 @@
 
 ## Goal
 
-Add a dedicated SDK page under the admin console's Developer Support menu. The page helps developers copy or download ready-to-use SDK components for common client stacks, starting with React, Vue, React Native, and a framework-neutral TypeScript core client.
+Add a dedicated SDK page under the admin console's Developer Support menu. The page helps developers copy or download ready-to-use SDK components for common client stacks, including React, Vue, React Native, Angular, Svelte, Electron, Flutter/Dart, and a framework-neutral TypeScript core client.
 
 ## Scope
 
@@ -26,6 +26,10 @@ The content uses Ant Design Pro cards and tabs:
   - React: hook and component for activation and verification.
   - Vue: composable and single-file component.
   - React Native: hook and screen component using `fetch`.
+  - Angular: injectable service and component using Angular `HttpClient`.
+  - Svelte: single-file component using `fetch`.
+  - Electron: renderer-side client helper for desktop apps.
+  - Flutter/Dart: Dart client for Flutter apps.
 
 Each tab includes:
 
@@ -81,8 +85,7 @@ This page does not call mutation APIs. If no apps are loaded, the fallback `app_
 ## Testing
 
 - Add focused tests for `licenseSdks` template generation to verify:
-  - React, Vue, React Native, and TypeScript Core entries exist.
+  - React, Vue, React Native, Angular, Svelte, Electron, Flutter/Dart, and TypeScript Core entries exist.
   - Generated code includes the selected `app_id` and API base URL.
   - Generated code contains only the secret placeholder, not a real secret.
 - Run `pnpm --filter @license-manager/admin type-check`.
-
