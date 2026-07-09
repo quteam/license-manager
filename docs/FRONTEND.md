@@ -45,7 +45,7 @@
 - 日期展示保持 `YYYY-MM-DD HH:mm:ss` 风格，优先复用 `shared/format.tsx`。
 - 应用管理页默认只展示应用列表；新增和修改应用使用弹窗承载表单，应用描述不必填，创建或更换后的 `app_secret` 使用一次性弹窗展示；应用使用说明用弹窗展示并提供可复制代码，代码中不得回显 `app_secret`；删除应用和更换密钥需二次确认。
 - 接入文档页提供客户端接口说明、接口流程图、可复制调用示例和现成 demo，demo 包含 TypeScript SDK、JavaScript SDK、cURL 和 HTML 示例；Playground 页提供在线真实接口调用，不保存或回显 `app_secret`，调用真实客户端接口时需要提示会写入日志或改变激活状态。
-- SDK 页提供可复制、可下载的 React、Vue、React Native 和 TypeScript Core 组件代码，根据当前后台地址和所选应用自动填入 API 基础地址与 `app_id`，不得请求、保存或回显真实 `app_secret`。
+- SDK 页提供可复制、可下载的 React、Vue、React Native、Angular、Svelte、Electron、Flutter/Dart 和 TypeScript Core 组件代码，根据当前后台地址和所选应用自动填入 API 基础地址与 `app_id`，不得请求、保存或回显真实 `app_secret`。
 - 管理后台列表默认展示序号列。
 - 激活码页支持单个和批量禁用、启用、删除操作，并支持对已绑定的有效激活码手动解绑；禁用状态优先于未激活、已激活和已过期展示。
 - 激活码页只展示设备绑定状态，不展示设备哈希或设备指纹明文。

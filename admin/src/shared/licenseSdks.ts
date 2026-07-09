@@ -3,7 +3,7 @@ import type { CodeLanguage } from "./CodeBlock";
 type Translate = (key: string, values?: Record<string, string | number>) => string;
 
 export type LicenseSdkEntry = {
-  key: "typescript" | "react" | "vue" | "react-native";
+  key: "typescript" | "react" | "vue" | "react-native" | "angular" | "svelte" | "electron" | "flutter";
   name: string;
   description: string;
   filename: string;
@@ -46,6 +46,38 @@ export function createLicenseSdkEntries(appId: string, apiBaseUrl: string, t: Tr
       filename: "LicenseScreen.tsx",
       language: "typescript",
       code: createReactNativeSdk(appId, apiBaseUrl, secretPlaceholder)
+    },
+    {
+      key: "angular",
+      name: t("sdk.angularName"),
+      description: t("sdk.angularDescription"),
+      filename: "license.service.ts",
+      language: "typescript",
+      code: createAngularSdk(appId, apiBaseUrl, secretPlaceholder)
+    },
+    {
+      key: "svelte",
+      name: t("sdk.svelteName"),
+      description: t("sdk.svelteDescription"),
+      filename: "LicenseGate.svelte",
+      language: "html",
+      code: createSvelteSdk(appId, apiBaseUrl, secretPlaceholder)
+    },
+    {
+      key: "electron",
+      name: t("sdk.electronName"),
+      description: t("sdk.electronDescription"),
+      filename: "license-electron.ts",
+      language: "typescript",
+      code: createElectronSdk(appId, apiBaseUrl, secretPlaceholder)
+    },
+    {
+      key: "flutter",
+      name: t("sdk.flutterName"),
+      description: t("sdk.flutterDescription"),
+      filename: "license_client.dart",
+      language: "text",
+      code: createFlutterSdk(appId, apiBaseUrl, secretPlaceholder)
     }
   ];
 }
@@ -383,6 +415,265 @@ export function LicenseScreen({ deviceFingerprint }: { deviceFingerprint: string
 }`;
 }
 
+function createAngularSdk(appId: string, apiBaseUrl: string, secretPlaceholder: string) {
+  return `import { Component, Injectable, signal } from "@angular/core";
+import { HttpClient } from "@angular/common/http";
+import { firstValueFrom } from "rxjs";
+
+type LicenseData = {
+  valid: boolean;
+  device_bound: boolean;
+  expires_at: string | null;
+  remaining_seconds: number;
+};
+
+type LicenseApiResponse =
+  | { ok: true; data: LicenseData }
+  | { ok: false; error: { code: string; message: string } };
+
+@Injectable({ providedIn: "root" })
+export class LicenseService {
+  private readonly apiBaseUrl = ${toJsString(apiBaseUrl)};
+  private readonly appId = ${toJsString(appId)};
+  private readonly appSecret = ${toJsString(secretPlaceholder)};
+
+  constructor(private readonly http: HttpClient) {}
+
+  activate(code: string, deviceFingerprint: string) {
+    return this.request("/api/client/activate", code, deviceFingerprint);
+  }
+
+  verify(code: string, deviceFingerprint: string) {
+    return this.request("/api/client/verify", code, deviceFingerprint);
+  }
+
+  async request(path: string, code: string, deviceFingerprint: string): Promise<LicenseData> {
+    const payload = await firstValueFrom(
+      this.http.post<LicenseApiResponse>(\`\${this.apiBaseUrl}\${path}\`, {
+        app_id: this.appId,
+        app_secret: this.appSecret,
+        code,
+        device_fingerprint: deviceFingerprint
+      })
+    );
+
+    if (!payload.ok) {
+      throw new Error(payload.error.message || payload.error.code);
+    }
+
+    return payload.data;
+  }
+}
+
+@Component({
+  selector: "app-license-gate",
+  template: \`
+    <section *ngIf="license()?.valid; else activationForm">
+      License valid until {{ license()?.expires_at ?? "never" }}
+    </section>
+    <ng-template #activationForm>
+      <form (ngSubmit)="activate()">
+        <input name="code" [(ngModel)]="code" placeholder="Activation code" required />
+        <button type="submit" [disabled]="loading()">{{ loading() ? "Activating..." : "Activate" }}</button>
+        <p *ngIf="error()" role="alert">{{ error() }}</p>
+      </form>
+    </ng-template>
+  \`
+})
+export class LicenseGateComponent {
+  code = "";
+  deviceFingerprint = "stable-device-id";
+  license = signal<LicenseData | null>(null);
+  error = signal<string | null>(null);
+  loading = signal(false);
+
+  constructor(private readonly licenseService: LicenseService) {}
+
+  async activate() {
+    this.loading.set(true);
+    this.error.set(null);
+    try {
+      this.license.set(await this.licenseService.activate(this.code.trim(), this.deviceFingerprint));
+    } catch (error) {
+      this.error.set(error instanceof Error ? error.message : "License request failed");
+    } finally {
+      this.loading.set(false);
+    }
+  }
+}`;
+}
+
+function createSvelteSdk(appId: string, apiBaseUrl: string, secretPlaceholder: string) {
+  return `<script lang="ts">
+  type LicenseData = {
+    valid: boolean;
+    device_bound: boolean;
+    expires_at: string | null;
+    remaining_seconds: number;
+  };
+
+  type LicenseApiResponse =
+    | { ok: true; data: LicenseData }
+    | { ok: false; error: { code: string; message: string } };
+
+  const API_BASE_URL = ${toJsString(apiBaseUrl)};
+  const APP_ID = ${toJsString(appId)};
+  const APP_SECRET = ${toJsString(secretPlaceholder)};
+
+  export let deviceFingerprint = "stable-device-id";
+
+  let code = "";
+  let license: LicenseData | null = null;
+  let error: string | null = null;
+  let loading = false;
+
+  async function requestLicense(path: string, activationCode: string) {
+    const response = await fetch(\`\${API_BASE_URL}\${path}\`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        app_id: APP_ID,
+        app_secret: APP_SECRET,
+        code: activationCode,
+        device_fingerprint: deviceFingerprint
+      })
+    });
+    const payload = (await response.json()) as LicenseApiResponse;
+
+    if (!payload.ok) {
+      throw new Error(payload.error.message || payload.error.code);
+    }
+
+    return payload.data;
+  }
+
+  async function activate() {
+    loading = true;
+    error = null;
+    try {
+      license = await requestLicense("/api/client/activate", code.trim());
+    } catch (requestError) {
+      error = requestError instanceof Error ? requestError.message : "License request failed";
+    } finally {
+      loading = false;
+    }
+  }
+</script>
+
+{#if license?.valid}
+  <section>License valid until {license.expires_at ?? "never"}</section>
+{:else}
+  <form on:submit|preventDefault={activate}>
+    <input bind:value={code} placeholder="Activation code" required />
+    <button type="submit" disabled={loading}>{loading ? "Activating..." : "Activate"}</button>
+    {#if error}<p role="alert">{error}</p>{/if}
+  </form>
+{/if}`;
+}
+
+function createElectronSdk(appId: string, apiBaseUrl: string, secretPlaceholder: string) {
+  return `type LicenseData = {
+  valid: boolean;
+  device_bound: boolean;
+  expires_at: string | null;
+  remaining_seconds: number;
+};
+
+type LicenseApiResponse =
+  | { ok: true; data: LicenseData }
+  | { ok: false; error: { code: string; message: string } };
+
+const API_BASE_URL = ${toJsString(apiBaseUrl)};
+const APP_ID = ${toJsString(appId)};
+const APP_SECRET = ${toJsString(secretPlaceholder)};
+
+export async function requestLicense(path: string, code: string, deviceFingerprint: string): Promise<LicenseData> {
+  const response = await fetch(\`\${API_BASE_URL}\${path}\`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      app_id: APP_ID,
+      app_secret: APP_SECRET,
+      code,
+      device_fingerprint: deviceFingerprint
+    })
+  });
+  const payload = (await response.json()) as LicenseApiResponse;
+
+  if (!payload.ok) {
+    throw new Error(payload.error.message || payload.error.code);
+  }
+
+  return payload.data;
+}
+
+export function activateLicense(code: string) {
+  const deviceFingerprint = window.navigator.userAgent;
+  return requestLicense("/api/client/activate", code, deviceFingerprint);
+}
+
+export function verifyLicense(code: string) {
+  const deviceFingerprint = window.navigator.userAgent;
+  return requestLicense("/api/client/verify", code, deviceFingerprint);
+}`;
+}
+
+function createFlutterSdk(appId: string, apiBaseUrl: string, secretPlaceholder: string) {
+  return `import 'dart:convert';
+import 'package:http/http.dart' as http;
+
+class LicenseClient {
+  LicenseClient({
+    this.apiBaseUrl = ${toDartString(apiBaseUrl)},
+    this.appId = ${toDartString(appId)},
+    this.appSecret = ${toDartString(secretPlaceholder)},
+    http.Client? httpClient,
+  }) : httpClient = httpClient ?? http.Client();
+
+  final String apiBaseUrl;
+  final String appId;
+  final String appSecret;
+  final http.Client httpClient;
+
+  Future<Map<String, dynamic>> activate(String code, String deviceFingerprint) {
+    return _request('/api/client/activate', code, deviceFingerprint);
+  }
+
+  Future<Map<String, dynamic>> verify(String code, String deviceFingerprint) {
+    return _request('/api/client/verify', code, deviceFingerprint);
+  }
+
+  Future<Map<String, dynamic>> unbindDevice(String code, String deviceFingerprint) {
+    return _request('/api/client/unbind-device', code, deviceFingerprint);
+  }
+
+  Future<Map<String, dynamic>> _request(String path, String code, String deviceFingerprint) async {
+    final response = await httpClient.post(
+      Uri.parse('\$apiBaseUrl\$path'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'app_id': appId,
+        'app_secret': appSecret,
+        'code': code,
+        'device_fingerprint': deviceFingerprint,
+      }),
+    );
+    final payload = jsonDecode(response.body) as Map<String, dynamic>;
+
+    if (payload['ok'] != true) {
+      final error = payload['error'] as Map<String, dynamic>?;
+      throw Exception(error?['message'] ?? error?['code'] ?? 'License request failed');
+    }
+
+    return payload['data'] as Map<String, dynamic>;
+  }
+}`;
+}
+
 function toJsString(value: string) {
   return JSON.stringify(value);
+}
+
+function toDartString(value: string) {
+  return `'${value.replace(/\\/g, "\\\\").replace(/'/g, "\\'")}'`;
 }

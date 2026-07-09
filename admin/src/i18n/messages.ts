@@ -327,7 +327,15 @@ export const dictionaries = {
       vueName: "Vue",
       vueDescription: "包含 Vue 组合式逻辑和单文件组件模板，适合 Vue 3 项目。",
       reactNativeName: "React Native",
-      reactNativeDescription: "包含移动端 Hook 和 Screen 组件，使用 fetch 调用授权接口。"
+      reactNativeDescription: "包含移动端 Hook 和 Screen 组件，使用 fetch 调用授权接口。",
+      angularName: "Angular",
+      angularDescription: "包含 Angular service 和组件示例，使用 HttpClient 调用授权接口。",
+      svelteName: "Svelte",
+      svelteDescription: "包含 Svelte 单文件组件示例，适合轻量 Web 客户端接入。",
+      electronName: "Electron",
+      electronDescription: "包含桌面应用 renderer 侧授权 helper，适合 Electron 客户端封装。",
+      flutterName: "Flutter / Dart",
+      flutterDescription: "包含 Dart 授权客户端，适合 Flutter 移动端或桌面项目。"
     },
     playground: {
       warning: "在线调用真实客户端接口，会写入操作日志；激活接口会绑定激活码和设备，解绑接口会清除当前绑定。",
@@ -676,7 +684,15 @@ export const dictionaries = {
       vueName: "Vue",
       vueDescription: "Vue composable logic and single-file component template for Vue 3 projects.",
       reactNativeName: "React Native",
-      reactNativeDescription: "Mobile hook and screen component that calls the license APIs with fetch."
+      reactNativeDescription: "Mobile hook and screen component that calls the license APIs with fetch.",
+      angularName: "Angular",
+      angularDescription: "Angular service and component example using HttpClient for license API calls.",
+      svelteName: "Svelte",
+      svelteDescription: "Single-file Svelte component example for lightweight web clients.",
+      electronName: "Electron",
+      electronDescription: "Renderer-side license helper for wrapping Electron desktop clients.",
+      flutterName: "Flutter / Dart",
+      flutterDescription: "Dart license client for Flutter mobile or desktop projects."
     },
     playground: {
       warning: "This calls real client APIs and writes operation logs. Activate binds the code to a device, and unbind clears the current binding.",

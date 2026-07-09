@@ -12,7 +12,15 @@ const t = (key: string) =>
     "sdk.vueName": "Vue",
     "sdk.vueDescription": "Vue composable and component",
     "sdk.reactNativeName": "React Native",
-    "sdk.reactNativeDescription": "React Native hook and screen"
+    "sdk.reactNativeDescription": "React Native hook and screen",
+    "sdk.angularName": "Angular",
+    "sdk.angularDescription": "Angular service and component",
+    "sdk.svelteName": "Svelte",
+    "sdk.svelteDescription": "Svelte component",
+    "sdk.electronName": "Electron",
+    "sdk.electronDescription": "Electron renderer helper",
+    "sdk.flutterName": "Flutter / Dart",
+    "sdk.flutterDescription": "Dart client"
   })[key] ?? key;
 
 describe("license SDK templates", () => {
@@ -21,11 +29,20 @@ describe("license SDK templates", () => {
 
     assert.deepEqual(
       entries.map((entry) => entry.key),
-      ["typescript", "react", "vue", "react-native"]
+      ["typescript", "react", "vue", "react-native", "angular", "svelte", "electron", "flutter"]
     );
     assert.deepEqual(
       entries.map((entry) => entry.filename),
-      ["license-client.ts", "LicenseGate.tsx", "LicenseGate.vue", "LicenseScreen.tsx"]
+      [
+        "license-client.ts",
+        "LicenseGate.tsx",
+        "LicenseGate.vue",
+        "LicenseScreen.tsx",
+        "license.service.ts",
+        "LicenseGate.svelte",
+        "license-electron.ts",
+        "license_client.dart"
+      ]
     );
   });
 
