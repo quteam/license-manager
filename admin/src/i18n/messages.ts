@@ -61,6 +61,7 @@ export const dictionaries = {
       generate: "生成激活码",
       logs: "操作日志",
       docs: "接入文档",
+      sdk: "SDK",
       playground: "Playground",
       license: "授权管理",
       audit: "审计管理",
@@ -311,6 +312,23 @@ export const dictionaries = {
       activateNewDevice: "新设备激活",
       activateNewDeviceDesc: "新设备继续调用激活接口完成重新绑定。"
     },
+    sdk: {
+      secretWarning: "生成的 SDK 代码只包含 app_secret 占位符，请在自己的项目中使用安全配置注入真实密钥，不要提交到公开仓库。",
+      config: "生成配置",
+      components: "SDK 组件",
+      download: "下载",
+      downloaded: "已开始下载",
+      downloadFailed: "下载失败",
+      filename: "文件名",
+      coreName: "TypeScript Core",
+      coreDescription: "不依赖框架的授权客户端，适合在 Web、桌面或 Node 能力受控的项目中二次封装。",
+      reactName: "React",
+      reactDescription: "包含 React Hook 和激活表单组件，可直接复制到 React 项目中调整样式。",
+      vueName: "Vue",
+      vueDescription: "包含 Vue 组合式逻辑和单文件组件模板，适合 Vue 3 项目。",
+      reactNativeName: "React Native",
+      reactNativeDescription: "包含移动端 Hook 和 Screen 组件，使用 fetch 调用授权接口。"
+    },
     playground: {
       warning: "在线调用真实客户端接口，会写入操作日志；激活接口会绑定激活码和设备，解绑接口会清除当前绑定。",
       action: "接口",
@@ -392,6 +410,7 @@ export const dictionaries = {
       generate: "Generate Codes",
       logs: "Operation Logs",
       docs: "Integration Docs",
+      sdk: "SDK",
       playground: "Playground",
       license: "License",
       audit: "Audit",
@@ -641,6 +660,23 @@ export const dictionaries = {
       clearBindingDesc: "Clear the device hash while keeping the original activation and expiration times.",
       activateNewDevice: "Activate New Device",
       activateNewDeviceDesc: "The new device calls activate to complete rebinding."
+    },
+    sdk: {
+      secretWarning: "Generated SDK code only contains an app_secret placeholder. Inject the real secret through secure project configuration and do not commit it to public repositories.",
+      config: "Generation Config",
+      components: "SDK Components",
+      download: "Download",
+      downloaded: "Download started",
+      downloadFailed: "Download failed",
+      filename: "Filename",
+      coreName: "TypeScript Core",
+      coreDescription: "Framework-neutral license client for wrapping in web, desktop, or controlled Node-capable projects.",
+      reactName: "React",
+      reactDescription: "React hook and activation form component that can be copied into a React project and restyled.",
+      vueName: "Vue",
+      vueDescription: "Vue composable logic and single-file component template for Vue 3 projects.",
+      reactNativeName: "React Native",
+      reactNativeDescription: "Mobile hook and screen component that calls the license APIs with fetch."
     },
     playground: {
       warning: "This calls real client APIs and writes operation logs. Activate binds the code to a device, and unbind clears the current binding.",

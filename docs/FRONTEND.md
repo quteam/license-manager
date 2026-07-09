@@ -27,6 +27,7 @@
 - 应用管理页放在 `admin/src/pages/AppsPage.tsx`。
 - 操作日志页放在 `admin/src/pages/LogsPage.tsx`。
 - 接入文档页放在 `admin/src/pages/DocsPage.tsx`。
+- SDK 页放在 `admin/src/pages/SdkPage.tsx`。
 - 在线 Playground 页放在 `admin/src/pages/PlaygroundPage.tsx`。
 
 ## 页面约定
@@ -36,7 +37,7 @@
 - 新增后台页面时，在 `routes.tsx` 中补充 `PageKey`、路由配置和页面组件。
 - 后台路由由 `Shell` 根据 `routes.tsx` 统一管理，页面路径需同步到 `ProLayout` 的菜单配置，通过菜单切换同步浏览器地址；页面内容由 `Shell` 使用 `Suspense` 承载加载态。
 - 面板首页为默认入口，路径为 `/dashboard`。
-- 后台菜单采用 Ant Design Pro 混合布局和 group 侧边菜单，工作台为一级入口，“应用管理”“激活码”“生成激活码”归入“授权管理”，“操作日志”归入“审计管理”，“接入文档”和“Playground”归入“开发支持”。
+- 后台菜单采用 Ant Design Pro 混合布局和 group 侧边菜单，工作台为一级入口，“应用管理”“激活码”“生成激活码”归入“授权管理”，“操作日志”归入“审计管理”，“接入文档”“SDK”和“Playground”归入“开发支持”。
 - 页面级 `PageContainer` 由 `Shell` 统一承载，除仪表盘外包含页面标题和面包屑；业务页面默认只渲染页面内容，不再重复包裹 `PageContainer`。
 - 页面需要在标题后展示局部控件时，通过 `components/PageTitleExtraContext.tsx` 注册标题附加内容，并在页面卸载时清理，不在业务页面重复创建 `PageContainer`。
 - 管理后台可见文案统一走 `admin/src/i18n/`，支持中文和英文；默认语言跟随系统语言，用户切换后写入浏览器本地存储。
@@ -44,6 +45,7 @@
 - 日期展示保持 `YYYY-MM-DD HH:mm:ss` 风格，优先复用 `shared/format.tsx`。
 - 应用管理页默认只展示应用列表；新增和修改应用使用弹窗承载表单，应用描述不必填，创建或更换后的 `app_secret` 使用一次性弹窗展示；应用使用说明用弹窗展示并提供可复制代码，代码中不得回显 `app_secret`；删除应用和更换密钥需二次确认。
 - 接入文档页提供客户端接口说明、接口流程图、可复制调用示例和现成 demo，demo 包含 TypeScript SDK、JavaScript SDK、cURL 和 HTML 示例；Playground 页提供在线真实接口调用，不保存或回显 `app_secret`，调用真实客户端接口时需要提示会写入日志或改变激活状态。
+- SDK 页提供可复制、可下载的 React、Vue、React Native 和 TypeScript Core 组件代码，根据当前后台地址和所选应用自动填入 API 基础地址与 `app_id`，不得请求、保存或回显真实 `app_secret`。
 - 管理后台列表默认展示序号列。
 - 激活码页支持单个和批量禁用、启用、删除操作，并支持对已绑定的有效激活码手动解绑；禁用状态优先于未激活、已激活和已过期展示。
 - 激活码页只展示设备绑定状态，不展示设备哈希或设备指纹明文。

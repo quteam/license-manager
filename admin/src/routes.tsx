@@ -1,6 +1,7 @@
 import {
   AppstoreOutlined,
   AuditOutlined,
+  CodeOutlined,
   DashboardOutlined,
   FileTextOutlined,
   KeyOutlined,
@@ -16,9 +17,10 @@ const CodesPage = lazy(() => import("./pages/CodesPage").then((module) => ({ def
 const GeneratePage = lazy(() => import("./pages/GeneratePage").then((module) => ({ default: module.GeneratePage })));
 const LogsPage = lazy(() => import("./pages/LogsPage").then((module) => ({ default: module.LogsPage })));
 const DocsPage = lazy(() => import("./pages/DocsPage").then((module) => ({ default: module.DocsPage })));
+const SdkPage = lazy(() => import("./pages/SdkPage").then((module) => ({ default: module.SdkPage })));
 const PlaygroundPage = lazy(() => import("./pages/PlaygroundPage").then((module) => ({ default: module.PlaygroundPage })));
 
-export type PageKey = "dashboard" | "apps" | "codes" | "generate" | "logs" | "docs" | "playground";
+export type PageKey = "dashboard" | "apps" | "codes" | "generate" | "logs" | "docs" | "sdk" | "playground";
 
 type AdminRoute = MenuDataItem & {
   key: PageKey;
@@ -76,6 +78,13 @@ export function getAdminPageRoutes(t: Translate): AdminRoute[] {
     element: <DocsPage />
   },
   {
+    key: "sdk",
+    path: "/sdk",
+    name: t("nav.sdk"),
+    icon: <CodeOutlined />,
+    element: <SdkPage />
+  },
+  {
     key: "playground",
     path: "/playground",
     name: "Playground",
@@ -92,6 +101,7 @@ const routePaths: Array<[string, PageKey]> = [
   ["/generate", "generate"],
   ["/logs", "logs"],
   ["/docs", "docs"],
+  ["/sdk", "sdk"],
   ["/playground", "playground"]
 ];
 
@@ -125,7 +135,7 @@ export function getMenuRoutes(routes: AdminRoute[], t: Translate): MenuDataItem[
       key: "support",
       path: "/support",
       name: t("nav.support"),
-      children: [menuRouteMap.docs, menuRouteMap.playground]
+      children: [menuRouteMap.docs, menuRouteMap.sdk, menuRouteMap.playground]
     }
   ];
 }
