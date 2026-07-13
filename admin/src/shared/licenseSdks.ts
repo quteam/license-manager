@@ -190,6 +190,15 @@ type LicenseData = {
   remaining_seconds: number;
 };
 
+type AppInfoData = {
+  app_id: string;
+  name: string;
+  description: string | null;
+  purchase_url: string | null;
+  platform: string;
+  status: "active" | "disabled";
+};
+
 type LicenseApiResponse =
   | { ok: true; data: LicenseData }
   | { ok: false; error: { code: string; message: string } };
@@ -210,6 +219,23 @@ async function requestLicense(path: string, code: string, deviceFingerprint: str
     })
   });
   const payload = (await response.json()) as LicenseApiResponse;
+
+  if (!payload.ok) {
+    throw new Error(payload.error.message || payload.error.code);
+  }
+
+  return payload.data;
+}
+
+export async function getAppInfo(): Promise<AppInfoData> {
+  const response = await fetch(\`\${API_BASE_URL}/api/client/app-info\`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ app_id: APP_ID, app_secret: APP_SECRET })
+  });
+  const payload = (await response.json()) as
+    | { ok: true; data: AppInfoData }
+    | { ok: false; error: { code: string; message: string } };
 
   if (!payload.ok) {
     throw new Error(payload.error.message || payload.error.code);
@@ -255,28 +281,68 @@ export function useLicense(deviceFingerprint: string) {
     }
   }, [deviceFingerprint]);
 
-  return { activate, verify, license, error, loading };
+  const unbindDevice = useCallback(async (code: string) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await requestLicense("/api/client/unbind-device", code, deviceFingerprint);
+      setLicense(data);
+      return data;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "License request failed";
+      setError(message);
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  }, [deviceFingerprint]);
+
+  return { activate, verify, unbindDevice, getAppInfo, license, error, loading };
 }
 
 export function LicenseGate({ deviceFingerprint }: { deviceFingerprint: string }) {
   const [code, setCode] = useState("");
-  const { activate, license, error, loading } = useLicense(deviceFingerprint);
+  const [appInfo, setAppInfo] = useState<AppInfoData | null>(null);
+  const [appInfoError, setAppInfoError] = useState<string | null>(null);
+  const { activate, verify, unbindDevice, getAppInfo, license, error, loading } = useLicense(deviceFingerprint);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    await activate(code.trim());
+    try {
+      await activate(code.trim());
+    } catch {}
   }
 
-  if (license?.valid) {
-    return <div>License valid until {license.expires_at ?? "never"}</div>;
+  async function handleLicenseAction(action: (activationCode: string) => Promise<LicenseData>) {
+    try {
+      await action(code.trim());
+    } catch {}
+  }
+
+  async function handleAppInfo() {
+    setAppInfoError(null);
+    try {
+      setAppInfo(await getAppInfo());
+    } catch (requestError) {
+      setAppInfoError(requestError instanceof Error ? requestError.message : "License request failed");
+    }
   }
 
   return (
-    <form onSubmit={handleSubmit}>
-      <input value={code} onChange={(event) => setCode(event.target.value)} placeholder="Activation code" required />
-      <button type="submit" disabled={loading}>{loading ? "Activating..." : "Activate"}</button>
-      {error ? <p role="alert">{error}</p> : null}
-    </form>
+    <section>
+      <form onSubmit={handleSubmit}>
+        <input value={code} onChange={(event) => setCode(event.target.value)} placeholder="Activation code" required />
+        <button type="submit" disabled={loading}>{loading ? "Activating..." : "Activate"}</button>
+      </form>
+      <p>
+        <button type="button" disabled={loading || !code.trim()} onClick={() => void handleLicenseAction(verify)}>Verify</button>
+        <button type="button" disabled={loading || !code.trim()} onClick={() => void handleLicenseAction(unbindDevice)}>Unbind device</button>
+        <button type="button" disabled={loading} onClick={() => void handleAppInfo()}>Get app info</button>
+      </p>
+      {license?.valid ? <p>License valid until {license.expires_at ?? "never"}</p> : null}
+      {appInfo ? <p>App: {appInfo.name} ({appInfo.platform})</p> : null}
+      {error || appInfoError ? <p role="alert">{error || appInfoError}</p> : null}
+    </section>
   );
 }`;
 }
@@ -292,6 +358,15 @@ type LicenseData = {
   remaining_seconds: number;
 };
 
+type AppInfoData = {
+  app_id: string;
+  name: string;
+  description: string | null;
+  purchase_url: string | null;
+  platform: string;
+  status: "active" | "disabled";
+};
+
 type LicenseApiResponse =
   | { ok: true; data: LicenseData }
   | { ok: false; error: { code: string; message: string } };
@@ -303,6 +378,7 @@ const DEVICE_FINGERPRINT = "stable-device-id";
 
 const code = ref("");
 const license = ref<LicenseData | null>(null);
+const appInfo = ref<AppInfoData | null>(null);
 const error = ref<string | null>(null);
 const loading = ref(false);
 
@@ -326,11 +402,66 @@ async function requestLicense(path: string, activationCode: string) {
   return payload.data;
 }
 
-async function activate() {
+async function getAppInfo(): Promise<AppInfoData> {
+  const response = await fetch(\`\${API_BASE_URL}/api/client/app-info\`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ app_id: APP_ID, app_secret: APP_SECRET })
+  });
+  const payload = (await response.json()) as
+    | { ok: true; data: AppInfoData }
+    | { ok: false; error: { code: string; message: string } };
+
+  if (!payload.ok) {
+    throw new Error(payload.error.message || payload.error.code);
+  }
+
+  return payload.data;
+}
+
+async function verifyLicense(activationCode: string) {
+  return requestLicense("/api/client/verify", activationCode);
+}
+
+async function activateLicense(activationCode: string) {
+  return requestLicense("/api/client/activate", activationCode);
+}
+
+async function unbindDevice(activationCode: string) {
+  return requestLicense("/api/client/unbind-device", activationCode);
+}
+
+defineExpose({ activateLicense, verifyLicense, unbindDevice, getAppInfo });
+
+async function runLicenseAction(action: (activationCode: string) => Promise<LicenseData>) {
   loading.value = true;
   error.value = null;
   try {
-    license.value = await requestLicense("/api/client/activate", code.value.trim());
+    license.value = await action(code.value.trim());
+  } catch (requestError) {
+    error.value = requestError instanceof Error ? requestError.message : "License request failed";
+  } finally {
+    loading.value = false;
+  }
+}
+
+async function activate() {
+  await runLicenseAction(activateLicense);
+}
+
+async function verify() {
+  await runLicenseAction(verifyLicense);
+}
+
+async function unbind() {
+  await runLicenseAction(unbindDevice);
+}
+
+async function loadAppInfo() {
+  loading.value = true;
+  error.value = null;
+  try {
+    appInfo.value = await getAppInfo();
   } catch (requestError) {
     error.value = requestError instanceof Error ? requestError.message : "License request failed";
   } finally {
@@ -343,13 +474,19 @@ async function activate() {
   <section v-if="license?.valid">
     License valid until {{ license.expires_at ?? "never" }}
   </section>
-  <form v-else @submit.prevent="activate">
+  <form @submit.prevent="activate">
     <input v-model="code" placeholder="Activation code" required />
     <button type="submit" :disabled="loading">
       {{ loading ? "Activating..." : "Activate" }}
     </button>
-    <p v-if="error" role="alert">{{ error }}</p>
   </form>
+  <p>
+    <button type="button" :disabled="loading || !code.trim()" @click="verify">Verify</button>
+    <button type="button" :disabled="loading || !code.trim()" @click="unbind">Unbind device</button>
+    <button type="button" :disabled="loading" @click="loadAppInfo">Get app info</button>
+  </p>
+  <p v-if="appInfo">App: {{ appInfo.name }} ({{ appInfo.platform }})</p>
+  <p v-if="error" role="alert">{{ error }}</p>
 </template>`;
 }
 
@@ -362,6 +499,15 @@ type LicenseData = {
   device_bound: boolean;
   expires_at: string | null;
   remaining_seconds: number;
+};
+
+type AppInfoData = {
+  app_id: string;
+  name: string;
+  description: string | null;
+  purchase_url: string | null;
+  platform: string;
+  status: "active" | "disabled";
 };
 
 type LicenseApiResponse =
@@ -392,6 +538,23 @@ async function requestLicense(path: string, code: string, deviceFingerprint: str
   return payload.data;
 }
 
+export async function getAppInfo(): Promise<AppInfoData> {
+  const response = await fetch(\`\${API_BASE_URL}/api/client/app-info\`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ app_id: APP_ID, app_secret: APP_SECRET })
+  });
+  const payload = (await response.json()) as
+    | { ok: true; data: AppInfoData }
+    | { ok: false; error: { code: string; message: string } };
+
+  if (!payload.ok) {
+    throw new Error(payload.error.message || payload.error.code);
+  }
+
+  return payload.data;
+}
+
 export function useLicense(deviceFingerprint: string) {
   const [license, setLicense] = useState<LicenseData | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -413,24 +576,72 @@ export function useLicense(deviceFingerprint: string) {
     }
   }, [deviceFingerprint]);
 
-  return { activate, license, error, loading };
+  const verify = useCallback(async (code: string) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await requestLicense("/api/client/verify", code, deviceFingerprint);
+      setLicense(data);
+      return data;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "License request failed";
+      setError(message);
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  }, [deviceFingerprint]);
+
+  const unbindDevice = useCallback(async (code: string) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await requestLicense("/api/client/unbind-device", code, deviceFingerprint);
+      setLicense(data);
+      return data;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "License request failed";
+      setError(message);
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  }, [deviceFingerprint]);
+
+  return { activate, verify, unbindDevice, getAppInfo, license, error, loading };
 }
 
 export function LicenseScreen({ deviceFingerprint }: { deviceFingerprint: string }) {
   const [code, setCode] = useState("");
-  const { activate, license, error, loading } = useLicense(deviceFingerprint);
+  const [appInfo, setAppInfo] = useState<AppInfoData | null>(null);
+  const [appInfoError, setAppInfoError] = useState<string | null>(null);
+  const { activate, verify, unbindDevice, getAppInfo, license, error, loading } = useLicense(deviceFingerprint);
+
+  async function handleLicenseAction(action: (activationCode: string) => Promise<LicenseData>) {
+    try {
+      await action(code.trim());
+    } catch {}
+  }
+
+  async function handleAppInfo() {
+    setAppInfoError(null);
+    try {
+      setAppInfo(await getAppInfo());
+    } catch (requestError) {
+      setAppInfoError(requestError instanceof Error ? requestError.message : "License request failed");
+    }
+  }
 
   return (
     <View>
-      {license?.valid ? (
-        <Text>License valid until {license.expires_at ?? "never"}</Text>
-      ) : (
-        <>
-          <TextInput value={code} onChangeText={setCode} placeholder="Activation code" autoCapitalize="characters" />
-          <Button title={loading ? "Activating..." : "Activate"} disabled={loading} onPress={() => activate(code.trim())} />
-          {error ? <Text accessibilityRole="alert">{error}</Text> : null}
-        </>
-      )}
+      <TextInput value={code} onChangeText={setCode} placeholder="Activation code" autoCapitalize="characters" />
+      <Button title={loading ? "Activating..." : "Activate"} disabled={loading} onPress={() => void handleLicenseAction(activate)} />
+      <Button title="Verify" disabled={loading || !code.trim()} onPress={() => void handleLicenseAction(verify)} />
+      <Button title="Unbind device" disabled={loading || !code.trim()} onPress={() => void handleLicenseAction(unbindDevice)} />
+      <Button title="Get app info" disabled={loading} onPress={() => void handleAppInfo()} />
+      {license?.valid ? <Text>License valid until {license.expires_at ?? "never"}</Text> : null}
+      {appInfo ? <Text>App: {appInfo.name} ({appInfo.platform})</Text> : null}
+      {error || appInfoError ? <Text accessibilityRole="alert">{error || appInfoError}</Text> : null}
     </View>
   );
 }`;
@@ -446,6 +657,15 @@ type LicenseData = {
   device_bound: boolean;
   expires_at: string | null;
   remaining_seconds: number;
+};
+
+type AppInfoData = {
+  app_id: string;
+  name: string;
+  description: string | null;
+  purchase_url: string | null;
+  platform: string;
+  status: "active" | "disabled";
 };
 
 type LicenseApiResponse =
@@ -466,6 +686,25 @@ export class LicenseService {
 
   verify(code: string, deviceFingerprint: string) {
     return this.request("/api/client/verify", code, deviceFingerprint);
+  }
+
+  unbindDevice(code: string, deviceFingerprint: string) {
+    return this.request("/api/client/unbind-device", code, deviceFingerprint);
+  }
+
+  async getAppInfo(): Promise<AppInfoData> {
+    const payload = await firstValueFrom(
+      this.http.post<{ ok: true; data: AppInfoData } | { ok: false; error: { code: string; message: string } }>(
+        \`\${this.apiBaseUrl}/api/client/app-info\`,
+        { app_id: this.appId, app_secret: this.appSecret }
+      )
+    );
+
+    if (!payload.ok) {
+      throw new Error(payload.error.message || payload.error.code);
+    }
+
+    return payload.data;
   }
 
   async request(path: string, code: string, deviceFingerprint: string): Promise<LicenseData> {
@@ -489,32 +728,61 @@ export class LicenseService {
 @Component({
   selector: "app-license-gate",
   template: \`
-    <section *ngIf="license()?.valid; else activationForm">
+    <section *ngIf="license()?.valid">
       License valid until {{ license()?.expires_at ?? "never" }}
     </section>
-    <ng-template #activationForm>
-      <form (ngSubmit)="activate()">
-        <input name="code" [(ngModel)]="code" placeholder="Activation code" required />
-        <button type="submit" [disabled]="loading()">{{ loading() ? "Activating..." : "Activate" }}</button>
-        <p *ngIf="error()" role="alert">{{ error() }}</p>
-      </form>
-    </ng-template>
+    <form (ngSubmit)="activate()">
+      <input name="code" [(ngModel)]="code" placeholder="Activation code" required />
+      <button type="submit" [disabled]="loading()">{{ loading() ? "Activating..." : "Activate" }}</button>
+    </form>
+    <p>
+      <button type="button" [disabled]="loading() || !code.trim()" (click)="verify()">Verify</button>
+      <button type="button" [disabled]="loading() || !code.trim()" (click)="unbindDevice()">Unbind device</button>
+      <button type="button" [disabled]="loading()" (click)="loadAppInfo()">Get app info</button>
+    </p>
+    <p *ngIf="appInfo() as info">App: {{ info.name }} ({{ info.platform }})</p>
+    <p *ngIf="error()" role="alert">{{ error() }}</p>
   \`
 })
 export class LicenseGateComponent {
   code = "";
   deviceFingerprint = "stable-device-id";
   license = signal<LicenseData | null>(null);
+  appInfo = signal<AppInfoData | null>(null);
   error = signal<string | null>(null);
   loading = signal(false);
 
   constructor(private readonly licenseService: LicenseService) {}
 
   async activate() {
+    await this.runLicenseAction(() => this.licenseService.activate(this.code.trim(), this.deviceFingerprint));
+  }
+
+  async verify() {
+    await this.runLicenseAction(() => this.licenseService.verify(this.code.trim(), this.deviceFingerprint));
+  }
+
+  async unbindDevice() {
+    await this.runLicenseAction(() => this.licenseService.unbindDevice(this.code.trim(), this.deviceFingerprint));
+  }
+
+  async loadAppInfo() {
     this.loading.set(true);
     this.error.set(null);
     try {
-      this.license.set(await this.licenseService.activate(this.code.trim(), this.deviceFingerprint));
+      this.appInfo.set(await this.licenseService.getAppInfo());
+    } catch (error) {
+      this.error.set(error instanceof Error ? error.message : "License request failed");
+    } finally {
+      this.loading.set(false);
+    }
+  }
+
+  private async runLicenseAction(action: () => Promise<LicenseData>) {
+    this.loading.set(true);
+    this.error.set(null);
+    try {
+      this.license.set(await action());
     } catch (error) {
       this.error.set(error instanceof Error ? error.message : "License request failed");
     } finally {
@@ -533,6 +801,15 @@ function createSvelteSdk(appId: string, apiBaseUrl: string, secretPlaceholder: s
     remaining_seconds: number;
   };
 
+  type AppInfoData = {
+    app_id: string;
+    name: string;
+    description: string | null;
+    purchase_url: string | null;
+    platform: string;
+    status: "active" | "disabled";
+  };
+
   type LicenseApiResponse =
     | { ok: true; data: LicenseData }
     | { ok: false; error: { code: string; message: string } };
@@ -545,6 +822,7 @@ function createSvelteSdk(appId: string, apiBaseUrl: string, secretPlaceholder: s
 
   let code = "";
   let license: LicenseData | null = null;
+  let appInfo: AppInfoData | null = null;
   let error: string | null = null;
   let loading = false;
 
@@ -568,11 +846,64 @@ function createSvelteSdk(appId: string, apiBaseUrl: string, secretPlaceholder: s
     return payload.data;
   }
 
-  async function activate() {
+  export async function getAppInfo(): Promise<AppInfoData> {
+    const response = await fetch(\`\${API_BASE_URL}/api/client/app-info\`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ app_id: APP_ID, app_secret: APP_SECRET })
+    });
+    const payload = (await response.json()) as
+      | { ok: true; data: AppInfoData }
+      | { ok: false; error: { code: string; message: string } };
+
+    if (!payload.ok) {
+      throw new Error(payload.error.message || payload.error.code);
+    }
+
+    return payload.data;
+  }
+
+  export function verifyLicense(activationCode: string) {
+    return requestLicense("/api/client/verify", activationCode);
+  }
+
+  export function activateLicense(activationCode: string) {
+    return requestLicense("/api/client/activate", activationCode);
+  }
+
+  export function unbindDevice(activationCode: string) {
+    return requestLicense("/api/client/unbind-device", activationCode);
+  }
+
+  async function runLicenseAction(action: (activationCode: string) => Promise<LicenseData>) {
     loading = true;
     error = null;
     try {
-      license = await requestLicense("/api/client/activate", code.trim());
+      license = await action(code.trim());
+    } catch (requestError) {
+      error = requestError instanceof Error ? requestError.message : "License request failed";
+    } finally {
+      loading = false;
+    }
+  }
+
+  async function activate() {
+    await runLicenseAction(activateLicense);
+  }
+
+  async function verify() {
+    await runLicenseAction(verifyLicense);
+  }
+
+  async function unbind() {
+    await runLicenseAction(unbindDevice);
+  }
+
+  async function loadAppInfo() {
+    loading = true;
+    error = null;
+    try {
+      appInfo = await getAppInfo();
     } catch (requestError) {
       error = requestError instanceof Error ? requestError.message : "License request failed";
     } finally {
@@ -583,13 +914,18 @@ function createSvelteSdk(appId: string, apiBaseUrl: string, secretPlaceholder: s
 
 {#if license?.valid}
   <section>License valid until {license.expires_at ?? "never"}</section>
-{:else}
-  <form on:submit|preventDefault={activate}>
-    <input bind:value={code} placeholder="Activation code" required />
-    <button type="submit" disabled={loading}>{loading ? "Activating..." : "Activate"}</button>
-    {#if error}<p role="alert">{error}</p>{/if}
-  </form>
-{/if}`;
+{/if}
+<form on:submit|preventDefault={activate}>
+  <input bind:value={code} placeholder="Activation code" required />
+  <button type="submit" disabled={loading}>{loading ? "Activating..." : "Activate"}</button>
+</form>
+<p>
+  <button type="button" disabled={loading || !code.trim()} on:click={verify}>Verify</button>
+  <button type="button" disabled={loading || !code.trim()} on:click={unbind}>Unbind device</button>
+  <button type="button" disabled={loading} on:click={loadAppInfo}>Get app info</button>
+</p>
+{#if appInfo}<p>App: {appInfo.name} ({appInfo.platform})</p>{/if}
+{#if error}<p role="alert">{error}</p>{/if}`;
 }
 
 function createElectronSdk(appId: string, apiBaseUrl: string, secretPlaceholder: string) {
@@ -598,6 +934,15 @@ function createElectronSdk(appId: string, apiBaseUrl: string, secretPlaceholder:
   device_bound: boolean;
   expires_at: string | null;
   remaining_seconds: number;
+};
+
+type AppInfoData = {
+  app_id: string;
+  name: string;
+  description: string | null;
+  purchase_url: string | null;
+  platform: string;
+  status: "active" | "disabled";
 };
 
 type LicenseApiResponse =
@@ -628,6 +973,23 @@ export async function requestLicense(path: string, code: string, deviceFingerpri
   return payload.data;
 }
 
+export async function getAppInfo(): Promise<AppInfoData> {
+  const response = await fetch(\`\${API_BASE_URL}/api/client/app-info\`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ app_id: APP_ID, app_secret: APP_SECRET })
+  });
+  const payload = (await response.json()) as
+    | { ok: true; data: AppInfoData }
+    | { ok: false; error: { code: string; message: string } };
+
+  if (!payload.ok) {
+    throw new Error(payload.error.message || payload.error.code);
+  }
+
+  return payload.data;
+}
+
 export function activateLicense(code: string) {
   const deviceFingerprint = window.navigator.userAgent;
   return requestLicense("/api/client/activate", code, deviceFingerprint);
@@ -636,6 +998,11 @@ export function activateLicense(code: string) {
 export function verifyLicense(code: string) {
   const deviceFingerprint = window.navigator.userAgent;
   return requestLicense("/api/client/verify", code, deviceFingerprint);
+}
+
+export function unbindDevice(code: string) {
+  const deviceFingerprint = window.navigator.userAgent;
+  return requestLicense("/api/client/unbind-device", code, deviceFingerprint);
 }`;
 }
 
@@ -666,6 +1033,22 @@ class LicenseClient {
 
   Future<Map<String, dynamic>> unbindDevice(String code, String deviceFingerprint) {
     return _request('/api/client/unbind-device', code, deviceFingerprint);
+  }
+
+  Future<Map<String, dynamic>> getAppInfo() async {
+    final response = await httpClient.post(
+      Uri.parse('\$apiBaseUrl/api/client/app-info'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'app_id': appId, 'app_secret': appSecret}),
+    );
+    final payload = jsonDecode(response.body) as Map<String, dynamic>;
+
+    if (payload['ok'] != true) {
+      final error = payload['error'] as Map<String, dynamic>?;
+      throw Exception(error?['message'] ?? error?['code'] ?? 'License request failed');
+    }
+
+    return payload['data'] as Map<String, dynamic>;
   }
 
   Future<Map<String, dynamic>> _request(String path, String code, String deviceFingerprint) async {

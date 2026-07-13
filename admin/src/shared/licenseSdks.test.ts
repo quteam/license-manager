@@ -57,11 +57,27 @@ describe("license SDK templates", () => {
     }
   });
 
-  it("includes the typed client app information API in the core SDK", () => {
-    const coreSdk = createLicenseSdkEntries("app_test", "https://license.example.com", t)[0];
+  it("includes every client API in every SDK component", () => {
+    const entries = createLicenseSdkEntries("app_test", "https://license.example.com", t);
 
-    assert.match(coreSdk.code, /export type AppInfoData/);
-    assert.match(coreSdk.code, /getAppInfo\(\)/);
-    assert.match(coreSdk.code, /\/api\/client\/app-info/);
+    for (const entry of entries) {
+      assert.match(entry.code, /\/api\/client\/activate/);
+      assert.match(entry.code, /\/api\/client\/verify/);
+      assert.match(entry.code, /\/api\/client\/unbind-device/);
+      assert.match(entry.code, /getAppInfo/);
+      assert.match(entry.code, /\/api\/client\/app-info/);
+    }
+  });
+
+  it("renders operations for every client API in interactive SDK components", () => {
+    const entries = createLicenseSdkEntries("app_test", "https://license.example.com", t);
+    const interactiveEntries = entries.filter((entry) => ["react", "vue", "react-native", "angular", "svelte"].includes(entry.key));
+
+    for (const entry of interactiveEntries) {
+      assert.match(entry.code, /Activate/);
+      assert.match(entry.code, /Verify/);
+      assert.match(entry.code, /Unbind device/);
+      assert.match(entry.code, /Get app info/);
+    }
   });
 });
