@@ -121,7 +121,7 @@ export class LicenseService {
     };
   }
 
-  async createApp(input: { name: string; description?: string; platform: string; status?: AppStatus }) {
+  async createApp(input: { name: string; description?: string; purchaseUrl?: string; platform: string; status?: AppStatus }) {
     const appId = `app_${generateRandomToken(12)}`;
     const appSecret = `sec_${generateRandomToken(32)}`;
     const appSecretHash = await this.hashAppSecret(appSecret);
@@ -129,6 +129,7 @@ export class LicenseService {
       appId,
       name: input.name,
       description: input.description,
+      purchaseUrl: input.purchaseUrl,
       platform: input.platform,
       status: input.status ?? APP_STATUS.ACTIVE,
       appSecretHash
@@ -139,7 +140,7 @@ export class LicenseService {
     };
   }
 
-  async updateApp(input: { appId: string; name: string; description?: string; platform: string }) {
+  async updateApp(input: { appId: string; name: string; description?: string; purchaseUrl?: string; platform: string }) {
     const app = await this.repo.updateApp(input);
     if (!app) {
       throw new ApiError(404, "NOT_FOUND", "App not found");

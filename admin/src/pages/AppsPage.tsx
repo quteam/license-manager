@@ -44,6 +44,20 @@ export function AppsPage() {
       renderText: (text: string | null) => text || "-"
     },
     {
+      title: t("apps.purchaseUrl"),
+      dataIndex: "purchase_url",
+      width: 150,
+      ellipsis: true,
+      render: (_, row) =>
+        row.purchase_url ? (
+          <Typography.Link href={row.purchase_url} target="_blank" rel="noreferrer" ellipsis>
+            {t("apps.buyLicense")}
+          </Typography.Link>
+        ) : (
+          "-"
+        )
+    },
+    {
       title: t("apps.platform"),
       dataIndex: "platform",
       width: 120,
@@ -67,7 +81,12 @@ export function AppsPage() {
           onUsage={() => setUsageApp(row)}
           onEdit={() => {
             setEditingApp(row);
-            editForm.setFieldsValue({ name: row.name, description: row.description ?? undefined, platform: row.platform });
+            editForm.setFieldsValue({
+              name: row.name,
+              description: row.description ?? undefined,
+              purchase_url: row.purchase_url ?? undefined,
+              platform: row.platform
+            });
             setEditOpen(true);
           }}
           onRotateSecret={() => {
@@ -136,7 +155,7 @@ export function AppsPage() {
         headerTitle={t("apps.list")}
         cardBordered
         bordered
-        scroll={{ x: 1080 }}
+        scroll={{ x: 1230 }}
         search={false}
         pagination={false}
         toolBarRender={() => [
@@ -268,6 +287,12 @@ function AppFormFields() {
         rules={[{ required: true, message: t("apps.platformRequired") }]}
       />
       <ProFormTextArea name="description" label={t("apps.appDescription")} fieldProps={{ rows: 3, maxLength: 300, showCount: true }} />
+      <ProFormText
+        name="purchase_url"
+        label={t("apps.purchaseUrl")}
+        placeholder={t("apps.purchaseUrlPlaceholder")}
+        rules={[{ type: "url", message: t("apps.purchaseUrlInvalid") }]}
+      />
     </>
   );
 }

@@ -27,6 +27,7 @@ export type AppItem = {
   app_id: string;
   name: string;
   description: string | null;
+  purchase_url: string | null;
   platform: AppPlatform;
   status: AppStatus;
   created_at: string;

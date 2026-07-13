@@ -28,6 +28,22 @@ export function optionalString(value: unknown): string | undefined {
   return typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined;
 }
 
+export function optionalHttpUrl(value: unknown, name: string): string | undefined {
+  const normalized = optionalString(value);
+  if (!normalized) {
+    return undefined;
+  }
+  try {
+    const url = new URL(normalized);
+    if (url.protocol !== "http:" && url.protocol !== "https:") {
+      throw new Error("Unsupported protocol");
+    }
+    return url.toString();
+  } catch {
+    throw new ApiError(400, "BAD_REQUEST", `${name} must be a valid http or https URL`);
+  }
+}
+
 export function requireInteger(value: unknown, name: string, options: { min?: number; max?: number } = {}): number {
   const numeric = typeof value === "number" ? value : Number(value);
   if (!Number.isInteger(numeric)) {

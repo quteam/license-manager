@@ -186,12 +186,15 @@
 {
   "name": "Desktop App",
   "description": "optional description",
+  "purchase_url": "https://example.com/buy-license",
   "platform": "windows",
   "status": "active"
 }
 ```
 
 `description` 可省略或为空。
+
+`purchase_url` 可省略或为空，只接受 `http` 或 `https` 链接。
 
 返回中包含一次性展示的 `app_secret`。
 
@@ -203,11 +206,14 @@
 {
   "name": "Desktop App",
   "description": "optional description",
+  "purchase_url": "https://example.com/buy-license",
   "platform": "windows"
 }
 ```
 
 `description` 可省略或为空，为空时清除描述。
+
+`purchase_url` 可省略或为空，为空时清除购买链接；只接受 `http` 或 `https` 链接。
 
 返回更新后的 `app`，不包含 `app_secret` 或密钥哈希。
 

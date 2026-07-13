@@ -145,6 +145,8 @@ export const dictionaries = {
       appId: "应用 ID",
       name: "名称",
       description: "描述",
+      purchaseUrl: "授权码购买链接",
+      buyLicense: "购买授权码",
       platform: "平台",
       createdAt: "创建时间",
       createApp: "新增应用",
@@ -168,6 +170,8 @@ export const dictionaries = {
       appNameRequired: "请输入应用名称",
       platformRequired: "请选择平台",
       appDescription: "应用描述",
+      purchaseUrlPlaceholder: "https://example.com/buy-license",
+      purchaseUrlInvalid: "请输入有效的购买链接",
       copyAppSecret: "复制应用密钥"
     },
     codes: {
@@ -502,6 +506,8 @@ export const dictionaries = {
       appId: "App ID",
       name: "Name",
       description: "Description",
+      purchaseUrl: "License Purchase URL",
+      buyLicense: "Buy License",
       platform: "Platform",
       createdAt: "Created At",
       createApp: "New App",
@@ -525,6 +531,8 @@ export const dictionaries = {
       appNameRequired: "Please enter app name",
       platformRequired: "Please select platform",
       appDescription: "App Description",
+      purchaseUrlPlaceholder: "https://example.com/buy-license",
+      purchaseUrlInvalid: "Please enter a valid purchase URL",
       copyAppSecret: "Copy app secret"
     },
     codes: {

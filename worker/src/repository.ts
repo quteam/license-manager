@@ -59,7 +59,7 @@ export class Repository {
   async listApps(): Promise<Array<Omit<AppRow, "app_secret_hash">>> {
     const result = await this.db
       .prepare(
-        "SELECT id, app_id, name, description, platform, status, created_at, updated_at FROM apps ORDER BY created_at DESC"
+        "SELECT id, app_id, name, description, purchase_url, platform, status, created_at, updated_at FROM apps ORDER BY created_at DESC"
       )
       .all<Omit<AppRow, "app_secret_hash">>();
     return result.results ?? [];
@@ -69,19 +69,21 @@ export class Repository {
     appId: string;
     name: string;
     description?: string;
+    purchaseUrl?: string;
     platform: string;
     status: AppStatus;
     appSecretHash: string;
   }): Promise<AppRow> {
     await this.db
       .prepare(
-        `INSERT INTO apps (app_id, name, description, platform, status, app_secret_hash, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`
+        `INSERT INTO apps (app_id, name, description, purchase_url, platform, status, app_secret_hash, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .bind(
         input.appId,
         input.name,
         input.description ?? null,
+        input.purchaseUrl ?? null,
         input.platform,
         input.status,
         input.appSecretHash,
@@ -103,10 +105,16 @@ export class Repository {
     return result.meta.changes === 1;
   }
 
-  async updateApp(input: { appId: string; name: string; description?: string; platform: string }): Promise<AppRow | null> {
+  async updateApp(input: {
+    appId: string;
+    name: string;
+    description?: string;
+    purchaseUrl?: string;
+    platform: string;
+  }): Promise<AppRow | null> {
     const result = await this.db
-      .prepare("UPDATE apps SET name = ?, description = ?, platform = ?, updated_at = ? WHERE app_id = ?")
-      .bind(input.name, input.description ?? null, input.platform, new Date().toISOString(), input.appId)
+      .prepare("UPDATE apps SET name = ?, description = ?, purchase_url = ?, platform = ?, updated_at = ? WHERE app_id = ?")
+      .bind(input.name, input.description ?? null, input.purchaseUrl ?? null, input.platform, new Date().toISOString(), input.appId)
       .run();
     if (result.meta.changes !== 1) {
       return null;
@@ -141,7 +149,9 @@ export class Repository {
 
   async getAppByPublicId(appId: string): Promise<AppRow | null> {
     return await this.db
-      .prepare("SELECT id, app_id, name, description, platform, status, app_secret_hash, created_at, updated_at FROM apps WHERE app_id = ?")
+      .prepare(
+        "SELECT id, app_id, name, description, purchase_url, platform, status, app_secret_hash, created_at, updated_at FROM apps WHERE app_id = ?"
+      )
       .bind(appId)
       .first<AppRow>();
   }

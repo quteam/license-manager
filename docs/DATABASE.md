@@ -4,7 +4,7 @@ D1 schema 由 `migrations/` 管理，当前初始迁移为 `migrations/0001_init
 
 ## 表职责
 
-- `apps`：应用元数据、可选描述和应用密钥哈希。
+- `apps`：应用元数据、可选描述、授权码购买链接和应用密钥哈希。
 - `plans`：套餐定义。
 - `admin_users`：管理员账号和密码哈希。
 - `activation_batches`：批量生成记录。

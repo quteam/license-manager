@@ -27,6 +27,7 @@ export type AppRow = {
   app_id: string;
   name: string;
   description: string | null;
+  purchase_url: string | null;
   platform: string;
   status: AppStatus;
   app_secret_hash: string;

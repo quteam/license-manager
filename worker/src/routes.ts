@@ -11,7 +11,7 @@ import {
   isCodeToggleStatus
 } from "./constants";
 import { signJwt } from "./crypto";
-import { ok, optionalString, readJson, requireInteger, requireString } from "./http";
+import { ok, optionalHttpUrl, optionalString, readJson, requireInteger, requireString } from "./http";
 import { requireAdmin } from "./middleware";
 import { Repository } from "./repository";
 import { LicenseService } from "./service";
@@ -90,11 +90,12 @@ export function createApi() {
     const body = await readJson(c.req.raw);
     const name = requireString(body.name, "name");
     const description = optionalString(body.description);
+    const purchaseUrl = optionalHttpUrl(body.purchase_url, "purchase_url");
     const platform = requireString(body.platform, "platform");
     const status = optionalString(body.status) === APP_STATUS.DISABLED ? APP_STATUS.DISABLED : APP_STATUS.ACTIVE;
     const repo = new Repository(c.env.DB);
     const service = new LicenseService(repo, c.env);
-    const app = await service.createApp({ name, description, platform, status });
+    const app = await service.createApp({ name, description, purchaseUrl, platform, status });
     return c.json(ok(app), 201);
   });
 
@@ -102,10 +103,11 @@ export function createApi() {
     const body = await readJson(c.req.raw);
     const name = requireString(body.name, "name");
     const description = optionalString(body.description);
+    const purchaseUrl = optionalHttpUrl(body.purchase_url, "purchase_url");
     const platform = requireString(body.platform, "platform");
     const repo = new Repository(c.env.DB);
     const service = new LicenseService(repo, c.env);
-    const app = await service.updateApp({ appId: c.req.param("appId"), name, description, platform });
+    const app = await service.updateApp({ appId: c.req.param("appId"), name, description, purchaseUrl, platform });
     return c.json(ok(app));
   });
 

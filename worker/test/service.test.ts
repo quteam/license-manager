@@ -180,6 +180,7 @@ class MemoryRepo {
       app_id: "app_test",
       name: "Test App",
       description: null,
+      purchase_url: null,
       platform: "desktop",
       status: APP_STATUS.ACTIVE,
       app_secret_hash: await hmacSha256(env.APP_SECRET_HMAC_SECRET, MemoryRepo.appSecret),
