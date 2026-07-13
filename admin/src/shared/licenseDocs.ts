@@ -123,44 +123,61 @@ export function createJavaScriptDemo(appId: string, apiBaseUrl: string, t?: Tran
   return `const APP_ID = "${escapeJsString(appId)}";
 const APP_SECRET = "${escapeJsString(t ? t("docs.secretPlaceholder") : "替换为创建应用时保存的 app_secret")}";
 const API_BASE_URL = "${escapeJsString(apiBaseUrl)}";
+const ERROR_FALLBACK = "${escapeJsString(t ? t("docs.errorFallback") : "请求失败")}";
 
-async function requestLicense(path, body) {
-  const response = await fetch(\`\${API_BASE_URL}\${path}\`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      app_id: APP_ID,
-      app_secret: APP_SECRET,
-      ...body
-    })
-  });
-  const payload = await response.json();
-  if (!payload.ok) {
-    throw new Error(payload.error?.message || payload.error?.code || "${escapeJsString(t ? t("docs.errorFallback") : "请求失败")}");
+class LicenseApiError extends Error {
+  constructor(code, message) {
+    super(message);
+    this.name = "LicenseApiError";
+    this.code = code;
   }
+}
+
+async function requestClient(path, body = {}) {
+  let response;
+  try {
+    response = await fetch(\`\${API_BASE_URL}\${path}\`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        app_id: APP_ID,
+        app_secret: APP_SECRET,
+        ...body
+      })
+    });
+  } catch {
+    throw new LicenseApiError("NETWORK_ERROR", ERROR_FALLBACK);
+  }
+
+  const payload = await response.json().catch(() => null);
+  if (!payload || typeof payload !== "object" || payload.ok !== true) {
+    const error = payload && typeof payload === "object" ? payload.error : null;
+    throw new LicenseApiError(error?.code || "REQUEST_FAILED", error?.message || ERROR_FALLBACK);
+  }
+
   return payload.data;
 }
 
 export function activateLicense(code, deviceFingerprint) {
-  return requestLicense("/api/client/activate", {
+  return requestClient("/api/client/activate", {
     code,
     device_fingerprint: deviceFingerprint
   });
 }
 
 export function verifyLicense(code, deviceFingerprint) {
-  return requestLicense("/api/client/verify", {
+  return requestClient("/api/client/verify", {
     code,
     device_fingerprint: deviceFingerprint
   });
 }
 
 export function getAppInfo() {
-  return requestLicense("/api/client/app-info", {});
+  return requestClient("/api/client/app-info");
 }
 
 export function unbindDevice(code, deviceFingerprint) {
-  return requestLicense("/api/client/unbind-device", {
+  return requestClient("/api/client/unbind-device", {
     code,
     device_fingerprint: deviceFingerprint
   });
@@ -195,11 +212,6 @@ export type AppInfoData = {
   status: "active" | "disabled";
 };
 
-type LicenseApiSuccess = {
-  ok: true;
-  data: LicenseData;
-};
-
 type LicenseApiFailure = {
   ok: false;
   error: {
@@ -208,7 +220,7 @@ type LicenseApiFailure = {
   };
 };
 
-type LicenseApiResponse = LicenseApiSuccess | LicenseApiFailure;
+type LicenseApiResponse<T> = { ok: true; data: T } | LicenseApiFailure;
 
 export type LicenseClientConfig = {
   apiBaseUrl: string;
@@ -216,73 +228,64 @@ export type LicenseClientConfig = {
   appSecret: string;
 };
 
-type LicenseRequestBody = {
-  code: string;
-  device_fingerprint: string;
-};
+export class LicenseApiError extends Error {
+  constructor(
+    readonly code: string,
+    message: string
+  ) {
+    super(message);
+    this.name = "LicenseApiError";
+  }
+}
 
 export class LicenseClient {
   constructor(private readonly config: LicenseClientConfig) {}
 
   activateLicense(code: string, deviceFingerprint: string) {
-    return this.requestLicense("/api/client/activate", {
+    return this.request<LicenseData>("/api/client/activate", {
       code,
       device_fingerprint: deviceFingerprint
     });
   }
 
   verifyLicense(code: string, deviceFingerprint: string) {
-    return this.requestLicense("/api/client/verify", {
+    return this.request<LicenseData>("/api/client/verify", {
       code,
       device_fingerprint: deviceFingerprint
     });
   }
 
   unbindDevice(code: string, deviceFingerprint: string) {
-    return this.requestLicense("/api/client/unbind-device", {
+    return this.request<LicenseData>("/api/client/unbind-device", {
       code,
       device_fingerprint: deviceFingerprint
     });
   }
 
   getAppInfo() {
-    return this.requestAppInfo();
+    return this.request<AppInfoData>("/api/client/app-info");
   }
 
-  private async requestAppInfo(): Promise<AppInfoData> {
-    const response = await fetch(\`\${this.config.apiBaseUrl}/api/client/app-info\`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        app_id: this.config.appId,
-        app_secret: this.config.appSecret
-      })
-    });
-    const payload = (await response.json()) as
-      | { ok: true; data: AppInfoData }
-      | { ok: false; error: { code: string; message: string } };
-
-    if (!payload.ok) {
-      throw new Error(payload.error.message || payload.error.code || "${escapeJsString(t ? t("docs.errorFallback") : "请求失败")}");
+  private async request<T>(path: string, body: Record<string, string> = {}): Promise<T> {
+    let response: Response;
+    try {
+      response = await fetch(\`\${this.config.apiBaseUrl}\${path}\`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          app_id: this.config.appId,
+          app_secret: this.config.appSecret,
+          ...body
+        })
+      });
+    } catch {
+      throw new LicenseApiError("NETWORK_ERROR", "${escapeJsString(t ? t("docs.errorFallback") : "请求失败")}");
     }
 
-    return payload.data;
-  }
-
-  private async requestLicense(path: string, body: LicenseRequestBody): Promise<LicenseData> {
-    const response = await fetch(\`\${this.config.apiBaseUrl}\${path}\`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        app_id: this.config.appId,
-        app_secret: this.config.appSecret,
-        ...body
-      })
-    });
-    const payload = (await response.json()) as LicenseApiResponse;
-
-    if (!payload.ok) {
-      throw new Error(payload.error.message || payload.error.code || "${escapeJsString(t ? t("docs.errorFallback") : "请求失败")}");
+    const payload = (await response.json().catch(() => null)) as LicenseApiResponse<T> | null;
+    if (!payload || !payload.ok) {
+      const error = payload && "error" in payload ? payload.error : undefined;
+      throw new LicenseApiError(error?.code || "REQUEST_FAILED", error?.message || "${escapeJsString(t ? t("docs.errorFallback") : "请求失败")}");
     }
 
     return payload.data;
@@ -319,20 +322,28 @@ export function createHtmlDemo(appId: string, apiBaseUrl: string, t?: Translate)
     const APP_ID = "${escapeJsString(appId)}";
     const API_BASE_URL = "${escapeJsString(apiBaseUrl)}";
 
+    const result = document.querySelector("#result");
+
     document.querySelector("#license-form").addEventListener("submit", async (event) => {
       event.preventDefault();
       const form = new FormData(event.currentTarget);
-      const response = await fetch(\`\${API_BASE_URL}/api/client/activate\`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          app_id: APP_ID,
-          app_secret: form.get("app_secret"),
-          code: form.get("code"),
-          device_fingerprint: form.get("device_fingerprint")
-        })
-      });
-      document.querySelector("#result").textContent = JSON.stringify(await response.json(), null, 2);
+      result.textContent = "";
+      try {
+        const response = await fetch(\`\${API_BASE_URL}/api/client/activate\`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            app_id: APP_ID,
+            app_secret: form.get("app_secret"),
+            code: form.get("code"),
+            device_fingerprint: form.get("device_fingerprint")
+          })
+        });
+        const payload = await response.json().catch(() => null);
+        result.textContent = JSON.stringify(payload ?? { ok: false, error: { code: "REQUEST_FAILED" } }, null, 2);
+      } catch {
+        result.textContent = JSON.stringify({ ok: false, error: { code: "NETWORK_ERROR" } }, null, 2);
+      }
     });
   </script>
 </html>`;

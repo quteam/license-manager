@@ -56,4 +56,12 @@ describe("license SDK templates", () => {
       assert.doesNotMatch(entry.code, /real_secret/);
     }
   });
+
+  it("includes the typed client app information API in the core SDK", () => {
+    const coreSdk = createLicenseSdkEntries("app_test", "https://license.example.com", t)[0];
+
+    assert.match(coreSdk.code, /export type AppInfoData/);
+    assert.match(coreSdk.code, /getAppInfo\(\)/);
+    assert.match(coreSdk.code, /\/api\/client\/app-info/);
+  });
 });

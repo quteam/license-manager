@@ -101,8 +101,17 @@ export type LicenseData = {
   max_rebinds: number;
 };
 
-type LicenseApiResponse =
-  | { ok: true; data: LicenseData }
+export type AppInfoData = {
+  app_id: string;
+  name: string;
+  description: string | null;
+  purchase_url: string | null;
+  platform: string;
+  status: "active" | "disabled";
+};
+
+type LicenseApiResponse<T> =
+  | { ok: true; data: T }
   | { ok: false; error: { code: string; message: string } };
 
 type LicenseClientConfig = {
@@ -120,29 +129,41 @@ export class LicenseClient {
   constructor(private readonly config: LicenseClientConfig) {}
 
   activate({ code, deviceFingerprint }: LicenseRequest) {
-    return this.request("/api/client/activate", code, deviceFingerprint);
+    return this.request<LicenseData>("/api/client/activate", {
+      code,
+      device_fingerprint: deviceFingerprint
+    });
   }
 
   verify({ code, deviceFingerprint }: LicenseRequest) {
-    return this.request("/api/client/verify", code, deviceFingerprint);
+    return this.request<LicenseData>("/api/client/verify", {
+      code,
+      device_fingerprint: deviceFingerprint
+    });
   }
 
   unbindDevice({ code, deviceFingerprint }: LicenseRequest) {
-    return this.request("/api/client/unbind-device", code, deviceFingerprint);
+    return this.request<LicenseData>("/api/client/unbind-device", {
+      code,
+      device_fingerprint: deviceFingerprint
+    });
   }
 
-  private async request(path: string, code: string, deviceFingerprint: string): Promise<LicenseData> {
+  getAppInfo() {
+    return this.request<AppInfoData>("/api/client/app-info");
+  }
+
+  private async request<T>(path: string, body: Record<string, string> = {}): Promise<T> {
     const response = await fetch(\`\${this.config.apiBaseUrl}\${path}\`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         app_id: this.config.appId,
         app_secret: this.config.appSecret,
-        code,
-        device_fingerprint: deviceFingerprint
+        ...body
       })
     });
-    const payload = (await response.json()) as LicenseApiResponse;
+    const payload = (await response.json()) as LicenseApiResponse<T>;
 
     if (!payload.ok) {
       throw new Error(payload.error.message || payload.error.code);
