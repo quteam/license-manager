@@ -91,6 +91,41 @@ describe("LicenseService device unbind flow", () => {
   });
 });
 
+describe("LicenseService client app info", () => {
+  let repo: MemoryRepo;
+  let service: LicenseService;
+
+  beforeEach(async () => {
+    repo = await MemoryRepo.create();
+    service = new LicenseService(repo as unknown as Repository, env);
+  });
+
+  it("returns public app information after validating the app secret", async () => {
+    await expect(
+      service.getClientAppInfo({
+        appId: repo.app.app_id,
+        appSecret: MemoryRepo.appSecret
+      })
+    ).resolves.toEqual({
+      app_id: repo.app.app_id,
+      name: repo.app.name,
+      description: repo.app.description,
+      purchase_url: repo.app.purchase_url,
+      platform: repo.app.platform,
+      status: repo.app.status
+    });
+  });
+
+  it("rejects an invalid app secret", async () => {
+    await expect(
+      service.getClientAppInfo({
+        appId: repo.app.app_id,
+        appSecret: "wrong-secret"
+      })
+    ).rejects.toMatchObject({ code: "INVALID_APP_SECRET" });
+  });
+});
+
 describe("LicenseService admin password reset", () => {
   let repo: MemoryRepo;
   let service: LicenseService;

@@ -360,6 +360,33 @@
 
 ## 客户端接口
 
+### 获取应用信息
+
+`POST /api/client/app-info`
+
+```json
+{
+  "app_id": "app_xxx",
+  "app_secret": "sec_xxx"
+}
+```
+
+请求会校验应用是否存在、处于启用状态且密钥匹配。成功时 `data` 只包含应用公开信息，不包含内部数据库 ID、应用密钥或密钥哈希：
+
+```json
+{
+  "ok": true,
+  "data": {
+    "app_id": "app_xxx",
+    "name": "Desktop App",
+    "description": "optional description",
+    "purchase_url": "https://example.com/buy-license",
+    "platform": "windows",
+    "status": "active"
+  }
+}
+```
+
 ### 激活
 
 `POST /api/client/activate`

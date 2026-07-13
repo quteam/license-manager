@@ -353,6 +353,11 @@ export class LicenseService {
     }
   }
 
+  async getClientAppInfo(input: { appId: string; appSecret: string }) {
+    const app = await this.requireValidClientApp(input.appId, input.appSecret);
+    return toClientAppInfo(app);
+  }
+
   async verify(input: { appId: string; appSecret: string; code: string; deviceFingerprint: string }) {
     const app = await this.requireValidClientApp(input.appId, input.appSecret);
     const deviceHash = await this.hashDevice(input.deviceFingerprint);
@@ -642,6 +647,17 @@ export class LicenseService {
 function stripAppSecret(app: AppRow) {
   const { app_secret_hash: _appSecretHash, ...safeApp } = app;
   return safeApp;
+}
+
+function toClientAppInfo(app: AppRow) {
+  return {
+    app_id: app.app_id,
+    name: app.name,
+    description: app.description,
+    purchase_url: app.purchase_url,
+    platform: app.platform,
+    status: app.status
+  };
 }
 
 function toLogErrorMessage(error: ApiError): string {

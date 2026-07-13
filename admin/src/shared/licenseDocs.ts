@@ -1,4 +1,4 @@
-export type ClientAction = "activate" | "verify" | "unbind";
+export type ClientAction = "app-info" | "activate" | "verify" | "unbind";
 
 export type ClientActionMeta = {
   value: ClientAction;
@@ -16,6 +16,12 @@ type Translate = (key: string, values?: Record<string, string | number>) => stri
 
 export function getClientActions(t: Translate): ClientActionMeta[] {
   return [
+  {
+    value: "app-info",
+    label: t("docs.actionAppInfo"),
+    path: "/api/client/app-info",
+    description: t("docs.actionAppInfoDesc")
+  },
   {
     value: "activate",
     label: t("docs.actionActivate"),
@@ -39,6 +45,11 @@ export function getClientActions(t: Translate): ClientActionMeta[] {
 
 export function getClientActionFlows(t: Translate): Record<ClientAction, ClientFlowStep[]> {
   return {
+  "app-info": [
+    { title: t("docs.submitClient"), detail: t("docs.submitClientAppInfo") },
+    { title: t("docs.verifyApp"), detail: t("docs.verifyAppDesc") },
+    { title: t("docs.returnAppInfo"), detail: t("docs.returnAppInfoDesc") }
+  ],
   activate: [
     { title: t("docs.submitClient"), detail: t("docs.submitClientActivate") },
     { title: t("docs.verifyApp"), detail: t("docs.verifyAppDesc") },
@@ -94,12 +105,10 @@ export function getClientPath(action: ClientAction) {
 export function createRequestPayload(action: ClientAction, appId: string, t?: Translate) {
   const secretPlaceholder = t ? t("docs.secretPlaceholder") : "替换为创建应用时保存的 app_secret";
   const body =
-    action === "unbind"
+    action === "app-info"
       ? {
           app_id: appId,
-          app_secret: secretPlaceholder,
-          code: "LM-XXXXX-XXXXX-XXXXX-XXXXX",
-          device_fingerprint: "stable-device-id"
+          app_secret: secretPlaceholder
         }
       : {
           app_id: appId,
@@ -146,6 +155,10 @@ export function verifyLicense(code, deviceFingerprint) {
   });
 }
 
+export function getAppInfo() {
+  return requestLicense("/api/client/app-info", {});
+}
+
 export function unbindDevice(code, deviceFingerprint) {
   return requestLicense("/api/client/unbind-device", {
     code,
@@ -171,6 +184,15 @@ export type LicenseData = {
   remaining_seconds: number;
   rebind_count: number;
   max_rebinds: number;
+};
+
+export type AppInfoData = {
+  app_id: string;
+  name: string;
+  description: string | null;
+  purchase_url: string | null;
+  platform: string;
+  status: "active" | "disabled";
 };
 
 type LicenseApiSuccess = {
@@ -221,6 +243,30 @@ export class LicenseClient {
       code,
       device_fingerprint: deviceFingerprint
     });
+  }
+
+  getAppInfo() {
+    return this.requestAppInfo();
+  }
+
+  private async requestAppInfo(): Promise<AppInfoData> {
+    const response = await fetch(\`\${this.config.apiBaseUrl}/api/client/app-info\`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        app_id: this.config.appId,
+        app_secret: this.config.appSecret
+      })
+    });
+    const payload = (await response.json()) as
+      | { ok: true; data: AppInfoData }
+      | { ok: false; error: { code: string; message: string } };
+
+    if (!payload.ok) {
+      throw new Error(payload.error.message || payload.error.code || "${escapeJsString(t ? t("docs.errorFallback") : "请求失败")}");
+    }
+
+    return payload.data;
   }
 
   private async requestLicense(path: string, body: LicenseRequestBody): Promise<LicenseData> {

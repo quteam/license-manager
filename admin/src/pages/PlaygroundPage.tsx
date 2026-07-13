@@ -18,7 +18,7 @@ type PlaygroundValues = {
   action: ClientAction;
   app_id: string;
   app_secret: string;
-  code: string;
+  code?: string;
   device_fingerprint?: string;
 };
 
@@ -114,15 +114,17 @@ export function PlaygroundPage() {
               fieldProps={{ autoComplete: "off" }}
               rules={[{ required: true, message: t("playground.appSecretRequired") }]}
             />
-            <ProFormText name="code" label={t("playground.code")} rules={[{ required: true, message: t("playground.codeRequired") }]} />
             <ProFormDependency name={["action"]}>
-              {({ action }) =>
-                <ProFormText
-                  name="device_fingerprint"
-                  label={action === "unbind" ? t("playground.currentDeviceFingerprint") : t("playground.deviceFingerprint")}
-                  rules={[{ required: true, message: t("playground.deviceFingerprintRequired") }]}
-                />
-              }
+              {({ action }) => action === "app-info" ? null : (
+                <>
+                  <ProFormText name="code" label={t("playground.code")} rules={[{ required: true, message: t("playground.codeRequired") }]} />
+                  <ProFormText
+                    name="device_fingerprint"
+                    label={action === "unbind" ? t("playground.currentDeviceFingerprint") : t("playground.deviceFingerprint")}
+                    rules={[{ required: true, message: t("playground.deviceFingerprintRequired") }]}
+                  />
+                </>
+              )}
             </ProFormDependency>
           </ProForm>
         </Space>
@@ -154,10 +156,13 @@ export function PlaygroundPage() {
 }
 
 function buildPlaygroundBody(values: PlaygroundValues) {
-  return {
+  const body: Record<string, string> = {
     app_id: values.app_id,
-    app_secret: values.app_secret,
-    code: values.code,
-    device_fingerprint: values.device_fingerprint
+    app_secret: values.app_secret
   };
+  if (values.action !== "app-info") {
+    body.code = values.code ?? "";
+    body.device_fingerprint = values.device_fingerprint ?? "";
+  }
+  return body;
 }

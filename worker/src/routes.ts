@@ -262,6 +262,17 @@ export function createApi() {
     return c.json(ok(result));
   });
 
+  api.post("/client/app-info", async (c) => {
+    const body = await readJson(c.req.raw);
+    const repo = new Repository(c.env.DB);
+    const service = new LicenseService(repo, c.env);
+    const result = await service.getClientAppInfo({
+      appId: requireString(body.app_id, "app_id"),
+      appSecret: requireString(body.app_secret, "app_secret")
+    });
+    return c.json(ok(result));
+  });
+
   api.post("/client/verify", async (c) => {
     const body = await readJson(c.req.raw);
     const repo = new Repository(c.env.DB);

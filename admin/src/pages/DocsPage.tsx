@@ -106,8 +106,12 @@ export function DocsPage() {
                   <Descriptions.Item label={t("docs.address")}>
                     <Typography.Text code>POST {action.path}</Typography.Text>
                   </Descriptions.Item>
-                  <Descriptions.Item label={t("docs.commonParams")}>app_id, app_secret, code</Descriptions.Item>
-                  <Descriptions.Item label={t("docs.deviceParams")}>device_fingerprint</Descriptions.Item>
+                  <Descriptions.Item label={t("docs.commonParams")}>
+                    {action.value === "app-info" ? "app_id, app_secret" : "app_id, app_secret, code"}
+                  </Descriptions.Item>
+                  <Descriptions.Item label={t("docs.deviceParams")}>
+                    {action.value === "app-info" ? t("docs.noDeviceParams") : "device_fingerprint"}
+                  </Descriptions.Item>
                 </Descriptions>
                 <FlowChart steps={clientActionFlows[action.value]} />
                 <CodeBlock value={createRequestPayload(action.value, selectedAppId, t)} title={t("docs.requestExample")} language="json" />
