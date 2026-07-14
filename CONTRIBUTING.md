@@ -36,11 +36,11 @@ pnpm build
 - 后端业务规则放在 `worker/src/service.ts`。
 - SQL 访问放在 `worker/src/repository.ts`，必须使用 prepared statement 和 `.bind(...)`。
 - 前端接口调用统一走 `admin/src/api.ts`。
-- 新增前端页面放在 `admin/src/pages/`，并在 `admin/src/components/Shell.tsx` 接入。
+- 新增前端页面放在 `admin/src/pages/`，并在 `admin/src/routes.tsx` 注册页面、路径和菜单。
 - 接口返回字段变化时，同步更新后端类型、前端类型、调用方和文档。
 - 数据库 schema 变化必须新增 `migrations/` 文件，不修改已发布迁移表达线上变更。
 
-更详细的开发规范见 `AGENTS.md` 和 `docs/README.md`。
+编码 Agent 先阅读 [AGENTS.md](AGENTS.md)，主题规范入口见 [docs/README.md](docs/README.md)。
 
 ## 安全要求
 

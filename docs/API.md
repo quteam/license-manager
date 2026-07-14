@@ -2,6 +2,29 @@
 
 公共 API 前缀为 `/api`。
 
+本文描述对管理后台和客户端可观察的 HTTP 契约。示例若只展示业务对象，默认表示成功响应中的 `data`；完整响应始终使用统一 envelope。
+
+## 通用约定
+
+- 请求和响应使用 JSON；有请求体的接口发送 `Content-Type: application/json`。
+- 字段名使用 `snake_case`，URL 路径参数使用当前已有的 `:appId`、`:id` 形式。
+- 未声明的请求字段不应被依赖；新增字段必须明确必填、可选、空值和默认行为。
+- 时间字段使用 UTC ISO 8601 字符串。
+- 业务失败返回稳定 `error.code`；调用方不得依赖 `error.message` 做程序判断。
+- API 不返回激活码 HMAC、应用密钥 HMAC、密码哈希、密码 salt 或设备指纹明文。
+
+## 鉴权边界
+
+| 接口范围 | 鉴权 |
+| --- | --- |
+| `GET /api/health` | 无 |
+| `POST /api/admin/login` | 用户名和密码 |
+| `POST /api/recovery/admin-password` | bootstrap 用户名和恢复密钥，请求体传递 |
+| `/api/admin/*` 其他接口 | `Authorization: Bearer <token>` |
+| `/api/client/*` | 每个请求体同时提供 `app_id` 和 `app_secret` |
+
+客户端鉴权依次确认应用存在、应用启用、密钥匹配。通过应用鉴权不代表激活码有效，仍需执行激活码状态判断。
+
 ## 响应格式
 
 成功：
@@ -41,6 +64,48 @@
 - `REBINDS_EXCEEDED`
 - `REBINDS_TOO_FREQUENT`
 - `CONFLICT`
+
+常见 HTTP 状态语义：
+
+| HTTP | 使用场景 |
+| --- | --- |
+| `400` | JSON、类型、范围或当前操作前置条件无效 |
+| `401` | 管理员凭证、Bearer Token 或应用密钥无效 |
+| `403` | 资源存在但被禁用、过期、设备不匹配或超过业务限制 |
+| `404` | 路由、应用、管理员或目标资源不存在；无效激活码使用 `INVALID_CODE` |
+| `409` | 并发状态变化、唯一性冲突或资源存在引用 |
+| `410` | 激活码已软删除 |
+| `429` | 自助解绑仍在冷却期 |
+| `500` | 未预期内部异常，对外统一为 `CONFLICT`，不暴露内部细节 |
+
+## 接口总览
+
+| 方法与路径 | 用途 | 主要影响 |
+| --- | --- | --- |
+| `GET /api/health` | 健康检查 | 只读 |
+| `POST /api/admin/login` | 管理员登录 | 可能初始化 bootstrap 管理员 |
+| `POST /api/recovery/admin-password` | 恢复管理员密码 | 更新密码哈希与 salt |
+| `GET /api/admin/me` | 当前管理员 | 只读 |
+| `PATCH /api/admin/password` | 修改密码 | 更新密码哈希与 salt |
+| `GET /api/admin/dashboard` | 仪表盘统计 | 只读聚合 |
+| `GET /api/admin/plans` | 套餐列表 | 只读 |
+| `GET /api/admin/apps` | 应用列表 | 只读 |
+| `POST /api/admin/apps` | 创建应用 | 写应用，一次性返回密钥 |
+| `PATCH /api/admin/apps/:appId` | 修改应用信息 | 写应用 |
+| `PATCH /api/admin/apps/:appId/status` | 启用/禁用应用 | 写应用和日志 |
+| `PATCH /api/admin/apps/:appId/secret` | 更换应用密钥 | 写应用和日志，一次性返回密钥 |
+| `DELETE /api/admin/apps/:appId` | 删除无引用应用 | 物理删除应用 |
+| `POST /api/admin/codes/batch` | 批量生成激活码 | 写批次、激活码和日志 |
+| `GET /api/admin/codes` | 激活码列表 | 只读分页 |
+| `PATCH /api/admin/codes/:id/status` | 启用/禁用激活码 | 写激活码和日志 |
+| `PATCH /api/admin/codes/:id/unbind-device` | 管理员手动解绑 | 写激活码和日志 |
+| `POST /api/admin/codes/bulk` | 批量删除/启用/禁用 | 写激活码和日志 |
+| `DELETE /api/admin/codes/:id` | 软删除激活码 | 写激活码和日志 |
+| `GET /api/admin/logs` | 操作日志 | 只读分页 |
+| `POST /api/client/app-info` | 获取应用公开信息 | 只读 |
+| `POST /api/client/activate` | 首次激活或重绑 | 可能写激活码和日志 |
+| `POST /api/client/verify` | 校验授权 | 写审计日志 |
+| `POST /api/client/unbind-device` | 自助解绑迁移 | 写激活码和日志 |
 
 ## 分页规范
 
@@ -282,7 +347,15 @@
 - `deleted`
 - `expired`
 
-返回的 `items` 中包含 `device_hash`，用于管理后台展示已绑定设备的 HMAC 哈希；未激活激活码为 `null`，接口不返回设备指纹明文。
+筛选语义：
+
+- `disabled`：未删除且 `disabled_at` 非空。
+- `expired`：`status = active`、未禁用且 `expires_at <= now`。
+- `unused`：存储状态为 `unused` 且未禁用。
+- `active`：存储状态为 `active` 且未禁用；当前实现仍可能包含已过期行，调用方根据 `expires_at` 展示 `expired`。
+- `deleted`：存储状态为 `deleted`。
+
+返回的 `items` 中包含 `device_hash`，仅用于管理后台判断是否已绑定设备；UI 不展示原始哈希。未激活激活码为 `null`，接口不返回设备指纹明文。
 
 ### 更新激活码禁用状态
 
@@ -360,6 +433,8 @@
 
 ## 客户端接口
 
+客户端请求中的 `app_secret`、`code` 和 `device_fingerprint` 只能放在 JSON 请求体中，不得放入 URL、查询参数或日志。
+
 ### 获取应用信息
 
 `POST /api/client/app-info`
@@ -402,6 +477,31 @@
 
 激活、校验和解绑成功时返回授权信息。`device_bound` 表示当前激活码是否已绑定设备；解绑成功后该字段为 `false`，新设备重新激活后恢复为 `true`。
 
+授权信息 `data` 结构：
+
+```json
+{
+  "valid": true,
+  "device_bound": true,
+  "app_id": "app_xxx",
+  "plan": {
+    "code": "monthly",
+    "name": "月卡",
+    "duration_days": 30
+  },
+  "activated_at": "2026-07-14T08:00:00.000Z",
+  "expires_at": "2026-08-14T08:00:00.000Z",
+  "remaining_seconds": 2678400,
+  "rebind_count": 0,
+  "max_rebinds": 3
+}
+```
+
+- `valid` 在成功响应中固定为 `true`；无效授权通过失败 envelope 表达，不返回 `valid: false` 的成功响应。
+- `remaining_seconds` 向下取整且最小为 0，仅代表响应时刻的剩余时间。
+- `duration_days` 是套餐基础字段；月卡、季卡和年卡的实际 `expires_at` 按自然月/年计算。
+- `device_bound` 为 `false` 时授权仍保留原到期时间，但校验会失败，必须先重新激活绑定。
+
 ### 校验
 
 `POST /api/client/verify`
@@ -429,3 +529,12 @@
 ```
 
 解绑成功后激活码保留原 `activated_at` 和 `expires_at`，但清空绑定设备。新设备继续调用激活接口并传入新设备的 `device_fingerprint` 完成重新绑定，不会重新计算授权有效期。
+
+## 契约变更要求
+
+- 新增或修改路由时同步 `worker/src/routes.ts` 和本文件。
+- 新增错误码时同步 `worker/src/constants.ts`、前端常量/处理、测试和本文件。
+- 响应字段变化时同步 Worker 返回类型、`admin/src/types.ts`、所有调用方和示例。
+- 持久化字段变化还需新增 migration，并更新 `worker/src/repository.ts`、`types.ts` 和 `docs/DATABASE.md`。
+- 客户端行为变化必须同步 `docs/BUSINESS_RULES.md`，并覆盖成功、拒绝和并发冲突测试。
+- 删除或重命名字段属于破坏性变化；在没有明确版本迁移方案前，不得直接修改已公开客户端契约。

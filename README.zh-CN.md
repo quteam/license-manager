@@ -190,12 +190,13 @@ pnpm deploy
 
 ## 文档
 
-更详细的设计、接口和维护规则分散在主题文档中：
+更详细的设计、接口和维护规则拆分在主题文档中：
 
 - [文档索引](docs/README.md)
 - [开发指南](docs/DEVELOPMENT.md)
 - [架构说明](docs/ARCHITECTURE.md)
 - [业务规则](docs/BUSINESS_RULES.md)
+- [前端规范](docs/FRONTEND.md)
 - [API 规范](docs/API.md)
 - [安全规范](docs/SECURITY.md)
 - [数据库规范](docs/DATABASE.md)

@@ -196,6 +196,7 @@ More detailed design, API, and maintenance rules are split into topic documents:
 - [Development guide](docs/DEVELOPMENT.md)
 - [Architecture](docs/ARCHITECTURE.md)
 - [Business rules](docs/BUSINESS_RULES.md)
+- [Frontend rules](docs/FRONTEND.md)
 - [API reference](docs/API.md)
 - [Security rules](docs/SECURITY.md)
 - [Database rules](docs/DATABASE.md)
