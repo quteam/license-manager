@@ -10,3 +10,5 @@ worker/dist
 coverage
 *.local
 *.log
+
+.playwright-cli
