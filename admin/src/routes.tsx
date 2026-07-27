@@ -129,12 +129,6 @@ export function getMenuRoutes(routes: AdminRoute[], t: Translate, isSuperAdmin: 
 
   return [
     menuRouteMap.dashboard,
-    ...(isSuperAdmin ? [{
-      key: "system",
-      path: "/system",
-      name: t("nav.system"),
-      children: [menuRouteMap.tenants]
-    }] : []),
     {
       key: "license",
       path: "/license",
@@ -152,6 +146,12 @@ export function getMenuRoutes(routes: AdminRoute[], t: Translate, isSuperAdmin: 
       path: "/support",
       name: t("nav.support"),
       children: [menuRouteMap.docs, menuRouteMap.sdk, menuRouteMap.playground]
-    }
+    },
+    ...(isSuperAdmin ? [{
+      key: "system",
+      path: "/system",
+      name: t("nav.system"),
+      children: [menuRouteMap.tenants]
+    }] : [])
   ];
 }
