@@ -76,6 +76,7 @@ describe("LicenseService device unbind flow", () => {
   it("manually unbinds a code without consuming the self-service rebind count", async () => {
     const result = await service.manuallyUnbindDevice({
       codeId: repo.code.id,
+      tenantId: 1,
       adminId: 99
     });
 
@@ -124,6 +125,16 @@ describe("LicenseService client app info", () => {
       })
     ).rejects.toMatchObject({ code: "INVALID_APP_SECRET" });
   });
+
+  it("rejects client access when the owning tenant is disabled", async () => {
+    repo.app.tenant_status = "disabled";
+    await expect(
+      service.getClientAppInfo({
+        appId: repo.app.app_id,
+        appSecret: MemoryRepo.appSecret
+      })
+    ).rejects.toMatchObject({ code: "APP_DISABLED" });
+  });
 });
 
 describe("LicenseService admin password reset", () => {
@@ -143,10 +154,13 @@ describe("LicenseService admin password reset", () => {
     });
 
     expect(result).toEqual({ reset: true });
-    await expect(service.authenticateAdmin("admin", "old-admin-password")).rejects.toMatchObject({ code: "UNAUTHORIZED" });
-    await expect(service.authenticateAdmin("admin", "new-admin-password")).resolves.toEqual({
+    await expect(service.authenticateAdmin("default", "admin", "old-admin-password")).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+    await expect(service.authenticateAdmin("默认租户", "admin", "new-admin-password")).resolves.toEqual({
       id: repo.admin.id,
-      username: "admin"
+      username: "admin",
+      role: "super_admin",
+      tenant_id: 1,
+      tenant_name: "默认租户"
     });
   });
 
@@ -159,9 +173,29 @@ describe("LicenseService admin password reset", () => {
       })
     ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
 
-    await expect(service.authenticateAdmin("admin", "old-admin-password")).resolves.toEqual({
+    await expect(service.authenticateAdmin("default", "admin", "old-admin-password")).resolves.toEqual({
       id: repo.admin.id,
-      username: "admin"
+      username: "admin",
+      role: "super_admin",
+      tenant_id: 1,
+      tenant_name: "默认租户"
+    });
+  });
+
+  it("rejects valid credentials for a different tenant", async () => {
+    await expect(service.authenticateAdmin("other-tenant", "admin", "old-admin-password")).rejects.toMatchObject({
+      code: "UNAUTHORIZED"
+    });
+  });
+
+  it("rejects a tenant administrator when the tenant is disabled", async () => {
+    repo.admin.role = "tenant_admin";
+    repo.admin.tenant_id = 1;
+    repo.admin.tenant_name = "Disabled tenant";
+    repo.admin.tenant_status = "disabled";
+
+    await expect(service.authenticateAdmin("Disabled tenant", "admin", "old-admin-password")).rejects.toMatchObject({
+      code: "FORBIDDEN"
     });
   });
 });
@@ -185,6 +219,10 @@ class MemoryRepo {
   readonly code: CodeDetailRow;
   readonly admin: {
     id: number;
+    tenant_id: number | null;
+    tenant_name: string | null;
+    tenant_status: "active" | "disabled" | null;
+    role: "super_admin" | "tenant_admin";
     username: string;
     password_hash: string;
     password_salt: string;
@@ -197,6 +235,10 @@ class MemoryRepo {
     code: CodeDetailRow,
     admin: {
       id: number;
+      tenant_id: number | null;
+      tenant_name: string | null;
+      tenant_status: "active" | "disabled" | null;
+      role: "super_admin" | "tenant_admin";
       username: string;
       password_hash: string;
       password_salt: string;
@@ -212,6 +254,8 @@ class MemoryRepo {
   static async create() {
     const app: AppRow = {
       id: 1,
+      tenant_id: 1,
+      tenant_status: "active",
       app_id: "app_test",
       name: "Test App",
       description: null,
@@ -232,7 +276,7 @@ class MemoryRepo {
       status: CODE_STATUS.ACTIVE,
       disabled_at: null,
       activated_at: "2026-06-25T08:00:00.000Z",
-      expires_at: "2026-07-25T08:00:00.000Z",
+      expires_at: "2099-07-25T08:00:00.000Z",
       device_hash: await hmacSha256(env.DEVICE_HMAC_SECRET, "device-a"),
       rebind_count: 0,
       last_rebind_at: null,
@@ -250,6 +294,10 @@ class MemoryRepo {
     const passwordRecord = await hashPassword("old-admin-password");
     const admin = {
       id: 1,
+      tenant_id: 1,
+      tenant_name: "默认租户",
+      tenant_status: "active" as const,
+      role: "super_admin" as const,
       username: "admin",
       password_hash: passwordRecord.hash,
       password_salt: passwordRecord.salt,
@@ -261,6 +309,11 @@ class MemoryRepo {
 
   async getAdminByUsername(username: string) {
     return this.admin.username === username ? this.admin : null;
+  }
+
+  async getAdminByTenantAndUsername(tenant: string, username: string) {
+    const tenantMatches = tenant.toLowerCase() === "default" || tenant.toLowerCase() === this.admin.tenant_name?.toLowerCase();
+    return this.admin.username === username && tenantMatches ? this.admin : null;
   }
 
   async getAdminCredentialsById(id: number) {

@@ -1,6 +1,7 @@
 import { ApiResponse } from "./types";
 
 const TOKEN_KEY = "license_manager_token";
+const TENANT_KEY = "license_manager_tenant_id";
 
 export function getToken(): string | null {
   return localStorage.getItem(TOKEN_KEY);
@@ -12,6 +13,17 @@ export function setToken(token: string): void {
 
 export function clearToken(): void {
   localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(TENANT_KEY);
+}
+
+export function getTenantId(): number | null {
+  const value = localStorage.getItem(TENANT_KEY);
+  const tenantId = value ? Number(value) : NaN;
+  return Number.isInteger(tenantId) && tenantId > 0 ? tenantId : null;
+}
+
+export function setTenantId(tenantId: number): void {
+  localStorage.setItem(TENANT_KEY, String(tenantId));
 }
 
 export async function apiRequest<T>(path: string, options: RequestInit = {}): Promise<T> {
@@ -20,6 +32,10 @@ export async function apiRequest<T>(path: string, options: RequestInit = {}): Pr
   const token = getToken();
   if (token) {
     headers.set("Authorization", `Bearer ${token}`);
+  }
+  const tenantId = getTenantId();
+  if (tenantId) {
+    headers.set("X-Tenant-Id", String(tenantId));
   }
   const response = await fetch(path, {
     ...options,

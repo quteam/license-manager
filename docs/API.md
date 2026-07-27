@@ -18,12 +18,19 @@
 | 接口范围 | 鉴权 |
 | --- | --- |
 | `GET /api/health` | 无 |
-| `POST /api/admin/login` | 用户名和密码 |
+| `POST /api/admin/login` | 租户名称或 slug、用户名和密码 |
 | `POST /api/recovery/admin-password` | bootstrap 用户名和恢复密钥，请求体传递 |
 | `/api/admin/*` 其他接口 | `Authorization: Bearer <token>` |
 | `/api/client/*` | 每个请求体同时提供 `app_id` 和 `app_secret` |
 
 客户端鉴权依次确认应用存在、应用启用、密钥匹配。通过应用鉴权不代表激活码有效，仍需执行激活码状态判断。
+
+管理端角色和租户上下文：
+
+- `tenant_admin` 固定使用管理员记录中的 `tenant_id`，服务端忽略其 `X-Tenant-Id`。
+- `super_admin` 调用 dashboard、应用、激活码和日志接口时必须发送 `X-Tenant-Id: <tenant id>`。
+- `/api/admin/tenants*` 只允许 `super_admin`，不要求租户上下文。
+- 禁用租户拒绝租户管理员登录和已有会话，也拒绝该租户的客户端接口。
 
 ## 响应格式
 
@@ -87,6 +94,12 @@
 | `POST /api/recovery/admin-password` | 恢复管理员密码 | 更新密码哈希与 salt |
 | `GET /api/admin/me` | 当前管理员 | 只读 |
 | `PATCH /api/admin/password` | 修改密码 | 更新密码哈希与 salt |
+| `GET /api/admin/tenants` | 租户列表 | 超级管理员只读 |
+| `POST /api/admin/tenants` | 创建租户和初始管理员 | 超级管理员写入 |
+| `PATCH /api/admin/tenants/:id` | 修改租户 | 超级管理员写入 |
+| `PATCH /api/admin/tenants/:id/status` | 启用/禁用租户 | 超级管理员写入 |
+| `PATCH /api/admin/tenants/:id/admin-password` | 重设租户管理员密码 | 超级管理员写入 |
+| `DELETE /api/admin/tenants/:id` | 删除无应用的非默认租户 | 超级管理员写入 |
 | `GET /api/admin/dashboard` | 仪表盘统计 | 只读聚合 |
 | `GET /api/admin/plans` | 套餐列表 | 只读 |
 | `GET /api/admin/apps` | 应用列表 | 只读 |
@@ -118,16 +131,21 @@
 
 管理端接口除登录外都需要 `Authorization: Bearer <token>`。
 
+除租户管理、当前管理员、修改密码和套餐列表外，以下管理端业务接口均按当前租户上下文返回或修改数据。超级管理员缺少 `X-Tenant-Id` 时返回 `BAD_REQUEST`。
+
 ### 登录
 
 `POST /api/admin/login`
 
 ```json
 {
+  "tenant": "default",
   "username": "admin",
   "password": "password"
 }
 ```
+
+`tenant` 必填，可以是租户当前名称或唯一小写 `slug`；名称精确匹配。租户、用户名或密码任一不匹配均返回相同的 `UNAUTHORIZED`，不暴露具体是哪一项不存在。
 
 返回：
 
@@ -136,7 +154,10 @@
   "token": "jwt",
   "admin": {
     "id": 1,
-    "username": "admin"
+    "username": "admin",
+    "role": "super_admin",
+    "tenant_id": 1,
+    "tenant_name": "默认租户"
   }
 }
 ```
@@ -151,7 +172,10 @@
 {
   "admin": {
     "id": 1,
-    "username": "admin"
+    "username": "admin",
+    "role": "super_admin",
+    "tenant_id": 1,
+    "tenant_name": "默认租户"
   }
 }
 ```
@@ -166,6 +190,41 @@
   "new_password": "new-password"
 }
 ```
+
+### 租户管理
+
+以下接口仅允许 `super_admin`。
+
+`GET /api/admin/tenants` 返回租户列表，每项包含 `id`、`name`、`slug`、`status`、`admin_count`、`admin_usernames`、`app_count` 和时间字段。
+
+`POST /api/admin/tenants`
+
+```json
+{
+  "name": "Acme",
+  "slug": "acme",
+  "status": "active",
+  "admin_username": "acme-admin",
+  "admin_password": "initial-password"
+}
+```
+
+`slug` 为 2 到 63 位小写字母、数字或连字符；管理员用户名全局唯一，密码至少 8 位。租户与初始管理员使用同一 D1 batch 创建。
+
+`PATCH /api/admin/tenants/:id` 请求 `name` 和 `slug`。
+
+`PATCH /api/admin/tenants/:id/status` 请求 `status`，值为 `active` 或 `disabled`。
+
+`PATCH /api/admin/tenants/:id/admin-password`
+
+```json
+{
+  "username": "acme-admin",
+  "new_password": "new-password"
+}
+```
+
+`DELETE /api/admin/tenants/:id` 只允许删除没有应用的非默认租户，同时删除该租户管理员；其他情况返回 `CONFLICT`。
 
 ### 重设管理员密码
 

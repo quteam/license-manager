@@ -1,6 +1,6 @@
-import type { AppStatus, CodeStatus, ErrorCode, LogResult } from "./constants";
+import type { AdminRole, AppStatus, CodeStatus, ErrorCode, LogResult, TenantStatus } from "./constants";
 
-export type { AppStatus, CodeBulkAction, CodeListStatus, CodeStatus, ErrorCode, LogAction, LogResult } from "./constants";
+export type { AdminRole, AppStatus, CodeBulkAction, CodeListStatus, CodeStatus, ErrorCode, LogAction, LogResult, TenantStatus } from "./constants";
 
 export type Bindings = {
   DB: D1Database;
@@ -20,10 +20,24 @@ export type Variables = {
 export type AdminPrincipal = {
   id: number;
   username: string;
+  role: AdminRole;
+  tenant_id: number | null;
+  tenant_name: string | null;
+};
+
+export type TenantRow = {
+  id: number;
+  name: string;
+  slug: string;
+  status: TenantStatus;
+  created_at: string;
+  updated_at: string;
 };
 
 export type AppRow = {
   id: number;
+  tenant_id: number;
+  tenant_status: TenantStatus;
   app_id: string;
   name: string;
   description: string | null;
@@ -46,6 +60,10 @@ export type PlanRow = {
 
 export type AdminUserRow = {
   id: number;
+  tenant_id: number | null;
+  role: AdminRole;
+  tenant_name: string | null;
+  tenant_status: TenantStatus | null;
   username: string;
   password_hash: string;
   password_salt: string;

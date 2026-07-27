@@ -1,5 +1,6 @@
 import { CODE_DERIVED_STATUS, CODE_STATUS } from "./constants";
 import {
+  AdminUserRow,
   AppRow,
   AppStatus,
   CodeDetailRow,
@@ -8,12 +9,15 @@ import {
   DashboardStats,
   LogAction,
   LogResult,
-  PlanRow
+  PlanRow,
+  TenantRow,
+  TenantStatus
 } from "./types";
 
 type SqlValue = string | number | null;
 
 export type CodeListFilters = {
+  tenantId: number;
   query?: string;
   appId?: string;
   planCode?: string;
@@ -23,6 +27,7 @@ export type CodeListFilters = {
 };
 
 export type LogListFilters = {
+  tenantId: number;
   query?: string;
   appId?: string;
   action?: string;
@@ -56,16 +61,112 @@ export class Repository {
       .first<PlanRow>();
   }
 
-  async listApps(): Promise<Array<Omit<AppRow, "app_secret_hash">>> {
+  async listTenants(): Promise<Array<TenantRow & { admin_count: number; app_count: number; admin_usernames: string | null }>> {
     const result = await this.db
       .prepare(
-        "SELECT id, app_id, name, description, purchase_url, platform, status, created_at, updated_at FROM apps ORDER BY created_at DESC"
+        `SELECT t.id, t.name, t.slug, t.status, t.created_at, t.updated_at,
+                COUNT(DISTINCT u.id) AS admin_count,
+                COUNT(DISTINCT a.id) AS app_count,
+                GROUP_CONCAT(DISTINCT u.username) AS admin_usernames
+         FROM tenants t
+         LEFT JOIN admin_users u ON u.tenant_id = t.id AND u.role = 'tenant_admin'
+         LEFT JOIN apps a ON a.tenant_id = t.id
+         GROUP BY t.id
+         ORDER BY t.created_at DESC`
       )
-      .all<Omit<AppRow, "app_secret_hash">>();
+      .all<TenantRow & { admin_count: number; app_count: number; admin_usernames: string | null }>();
+    return result.results ?? [];
+  }
+
+  async getTenantById(id: number): Promise<TenantRow | null> {
+    return await this.db
+      .prepare("SELECT id, name, slug, status, created_at, updated_at FROM tenants WHERE id = ?")
+      .bind(id)
+      .first<TenantRow>();
+  }
+
+  async createTenant(input: {
+    name: string;
+    slug: string;
+    status: TenantStatus;
+    adminUsername: string;
+    passwordHash: string;
+    passwordSalt: string;
+  }): Promise<TenantRow> {
+    const updatedAt = new Date().toISOString();
+    await this.db.batch([
+      this.db
+        .prepare("INSERT INTO tenants (name, slug, status, updated_at) VALUES (?, ?, ?, ?)")
+        .bind(input.name, input.slug, input.status, updatedAt),
+      this.db
+        .prepare(
+          `INSERT INTO admin_users (tenant_id, role, username, password_hash, password_salt, updated_at)
+           SELECT id, 'tenant_admin', ?, ?, ?, ? FROM tenants WHERE slug = ?`
+        )
+        .bind(input.adminUsername, input.passwordHash, input.passwordSalt, updatedAt, input.slug)
+    ]);
+    const tenant = await this.db
+      .prepare("SELECT id, name, slug, status, created_at, updated_at FROM tenants WHERE slug = ?")
+      .bind(input.slug)
+      .first<TenantRow>();
+    if (!tenant) {
+      throw new Error("Failed to create tenant");
+    }
+    return tenant;
+  }
+
+  async updateTenant(input: { id: number; name: string; slug: string }): Promise<TenantRow | null> {
+    const result = await this.db
+      .prepare("UPDATE tenants SET name = ?, slug = ?, updated_at = ? WHERE id = ?")
+      .bind(input.name, input.slug, new Date().toISOString(), input.id)
+      .run();
+    return result.meta.changes === 1 ? await this.getTenantById(input.id) : null;
+  }
+
+  async updateTenantStatus(id: number, status: TenantStatus): Promise<boolean> {
+    const result = await this.db
+      .prepare("UPDATE tenants SET status = ?, updated_at = ? WHERE id = ?")
+      .bind(status, new Date().toISOString(), id)
+      .run();
+    return result.meta.changes === 1;
+  }
+
+  async deleteTenantIfEmpty(id: number): Promise<boolean> {
+    const [, result] = await this.db.batch([
+      this.db
+        .prepare(
+          `DELETE FROM admin_users
+           WHERE tenant_id = ?
+             AND role = 'tenant_admin'
+             AND EXISTS (SELECT 1 FROM tenants WHERE id = ? AND id != 1)
+             AND NOT EXISTS (SELECT 1 FROM apps WHERE tenant_id = ?)`
+        )
+        .bind(id, id, id),
+      this.db
+        .prepare(
+          `DELETE FROM tenants
+           WHERE id = ?
+             AND id != 1
+             AND NOT EXISTS (SELECT 1 FROM apps WHERE tenant_id = ?)
+             AND NOT EXISTS (SELECT 1 FROM admin_users WHERE tenant_id = ?)`
+        )
+        .bind(id, id, id)
+    ]);
+    return result.meta.changes === 1;
+  }
+
+  async listApps(tenantId: number): Promise<Array<Omit<AppRow, "app_secret_hash" | "tenant_status">>> {
+    const result = await this.db
+      .prepare(
+        "SELECT id, tenant_id, app_id, name, description, purchase_url, platform, status, created_at, updated_at FROM apps WHERE tenant_id = ? ORDER BY created_at DESC"
+      )
+      .bind(tenantId)
+      .all<Omit<AppRow, "app_secret_hash" | "tenant_status">>();
     return result.results ?? [];
   }
 
   async createApp(input: {
+    tenantId: number;
     appId: string;
     name: string;
     description?: string;
@@ -76,10 +177,11 @@ export class Repository {
   }): Promise<AppRow> {
     await this.db
       .prepare(
-        `INSERT INTO apps (app_id, name, description, purchase_url, platform, status, app_secret_hash, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+        `INSERT INTO apps (tenant_id, app_id, name, description, purchase_url, platform, status, app_secret_hash, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .bind(
+        input.tenantId,
         input.appId,
         input.name,
         input.description ?? null,
@@ -90,47 +192,48 @@ export class Repository {
         new Date().toISOString()
       )
       .run();
-    const app = await this.getAppByPublicId(input.appId);
+    const app = await this.getAppByPublicId(input.appId, input.tenantId);
     if (!app) {
       throw new Error("Failed to create app");
     }
     return app;
   }
 
-  async updateAppStatus(appId: string, status: AppStatus): Promise<boolean> {
+  async updateAppStatus(appId: string, tenantId: number, status: AppStatus): Promise<boolean> {
     const result = await this.db
-      .prepare("UPDATE apps SET status = ?, updated_at = ? WHERE app_id = ?")
-      .bind(status, new Date().toISOString(), appId)
+      .prepare("UPDATE apps SET status = ?, updated_at = ? WHERE app_id = ? AND tenant_id = ?")
+      .bind(status, new Date().toISOString(), appId, tenantId)
       .run();
     return result.meta.changes === 1;
   }
 
   async updateApp(input: {
     appId: string;
+    tenantId: number;
     name: string;
     description?: string;
     purchaseUrl?: string;
     platform: string;
   }): Promise<AppRow | null> {
     const result = await this.db
-      .prepare("UPDATE apps SET name = ?, description = ?, purchase_url = ?, platform = ?, updated_at = ? WHERE app_id = ?")
-      .bind(input.name, input.description ?? null, input.purchaseUrl ?? null, input.platform, new Date().toISOString(), input.appId)
+      .prepare("UPDATE apps SET name = ?, description = ?, purchase_url = ?, platform = ?, updated_at = ? WHERE app_id = ? AND tenant_id = ?")
+      .bind(input.name, input.description ?? null, input.purchaseUrl ?? null, input.platform, new Date().toISOString(), input.appId, input.tenantId)
       .run();
     if (result.meta.changes !== 1) {
       return null;
     }
-    return await this.getAppByPublicId(input.appId);
+    return await this.getAppByPublicId(input.appId, input.tenantId);
   }
 
-  async updateAppSecretHash(appId: string, appSecretHash: string): Promise<AppRow | null> {
+  async updateAppSecretHash(appId: string, tenantId: number, appSecretHash: string): Promise<AppRow | null> {
     const result = await this.db
-      .prepare("UPDATE apps SET app_secret_hash = ?, updated_at = ? WHERE app_id = ?")
-      .bind(appSecretHash, new Date().toISOString(), appId)
+      .prepare("UPDATE apps SET app_secret_hash = ?, updated_at = ? WHERE app_id = ? AND tenant_id = ?")
+      .bind(appSecretHash, new Date().toISOString(), appId, tenantId)
       .run();
     if (result.meta.changes !== 1) {
       return null;
     }
-    return await this.getAppByPublicId(appId);
+    return await this.getAppByPublicId(appId, tenantId);
   }
 
   async deleteAppIfUnreferenced(appDbId: number): Promise<boolean> {
@@ -147,12 +250,16 @@ export class Repository {
     return result.meta.changes === 1;
   }
 
-  async getAppByPublicId(appId: string): Promise<AppRow | null> {
+  async getAppByPublicId(appId: string, tenantId?: number): Promise<AppRow | null> {
+    const tenantCondition = tenantId === undefined ? "" : " AND a.tenant_id = ?";
     return await this.db
       .prepare(
-        "SELECT id, app_id, name, description, purchase_url, platform, status, app_secret_hash, created_at, updated_at FROM apps WHERE app_id = ?"
+        `SELECT a.id, a.tenant_id, t.status AS tenant_status, a.app_id, a.name, a.description, a.purchase_url,
+                a.platform, a.status, a.app_secret_hash, a.created_at, a.updated_at
+         FROM apps a JOIN tenants t ON t.id = a.tenant_id
+         WHERE a.app_id = ?${tenantCondition}`
       )
-      .bind(appId)
+      .bind(...(tenantId === undefined ? [appId] : [appId, tenantId]))
       .first<AppRow>();
   }
 
@@ -299,43 +406,44 @@ export class Repository {
     return result.meta.changes === 1;
   }
 
-  async manuallyUnbindDevice(input: { codeId: number; changedAt: string }): Promise<boolean> {
+  async manuallyUnbindDevice(input: { codeId: number; tenantId: number; changedAt: string }): Promise<boolean> {
     const result = await this.db
       .prepare(
         `UPDATE activation_codes
          SET device_hash = NULL,
              updated_at = ?
          WHERE id = ?
+           AND app_id IN (SELECT id FROM apps WHERE tenant_id = ?)
            AND status = 'active'
            AND disabled_at IS NULL
            AND device_hash IS NOT NULL
            AND (expires_at IS NULL OR expires_at > ?)`
       )
-      .bind(input.changedAt, input.codeId, input.changedAt)
+      .bind(input.changedAt, input.codeId, input.tenantId, input.changedAt)
       .run();
     return result.meta.changes === 1;
   }
 
-  async softDeleteCode(codeId: number): Promise<boolean> {
+  async softDeleteCode(codeId: number, tenantId: number): Promise<boolean> {
     const result = await this.db
-      .prepare("UPDATE activation_codes SET status = 'deleted', updated_at = ? WHERE id = ?")
-      .bind(new Date().toISOString(), codeId)
+      .prepare("UPDATE activation_codes SET status = 'deleted', updated_at = ? WHERE id = ? AND app_id IN (SELECT id FROM apps WHERE tenant_id = ?)")
+      .bind(new Date().toISOString(), codeId, tenantId)
       .run();
     return result.meta.changes === 1;
   }
 
-  async updateCodeDisabled(input: { codeId: number; disabled: boolean; changedAt: string }): Promise<boolean> {
+  async updateCodeDisabled(input: { codeId: number; tenantId: number; disabled: boolean; changedAt: string }): Promise<boolean> {
     const disabledAt = input.disabled ? input.changedAt : null;
     const result = await this.db
-      .prepare("UPDATE activation_codes SET disabled_at = ?, updated_at = ? WHERE id = ? AND status != 'deleted'")
-      .bind(disabledAt, input.changedAt, input.codeId)
+      .prepare("UPDATE activation_codes SET disabled_at = ?, updated_at = ? WHERE id = ? AND status != 'deleted' AND app_id IN (SELECT id FROM apps WHERE tenant_id = ?)")
+      .bind(disabledAt, input.changedAt, input.codeId, input.tenantId)
       .run();
     return result.meta.changes === 1;
   }
 
   async listCodes(filters: CodeListFilters): Promise<{ items: CodeListItem[]; total: number }> {
-    const where: string[] = [];
-    const bindings: SqlValue[] = [];
+    const where: string[] = ["a.tenant_id = ?"];
+    const bindings: SqlValue[] = [filters.tenantId];
 
     if (filters.query) {
       where.push("(c.code_suffix LIKE ? OR a.app_id LIKE ? OR a.name LIKE ?)");
@@ -412,8 +520,8 @@ export class Repository {
   }
 
   async listLogs(filters: LogListFilters): Promise<{ items: LogListItem[]; total: number }> {
-    const where: string[] = [];
-    const bindings: SqlValue[] = [];
+    const where: string[] = ["a.tenant_id = ?"];
+    const bindings: SqlValue[] = [filters.tenantId];
 
     if (filters.query) {
       where.push("(c.code_suffix LIKE ? OR l.error_code LIKE ? OR l.message LIKE ?)");
@@ -468,12 +576,12 @@ export class Repository {
     };
   }
 
-  async getDashboardStats(): Promise<DashboardStats> {
+  async getDashboardStats(tenantId: number): Promise<DashboardStats> {
     const now = new Date().toISOString();
     const today = now.slice(0, 10);
     const trendStart = startOfUtcDayOffset(-6);
     const trendDates = buildLastSevenDates();
-    const activeTrendStatement = buildDashboardActiveTrendStatement(trendDates);
+    const activeTrendStatement = buildDashboardActiveTrendStatement(trendDates, tenantId);
 
     const [
       appOverview,
@@ -491,21 +599,25 @@ export class Repository {
           `SELECT
              COUNT(*) AS apps_total,
              SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END) AS apps_active
-           FROM apps`
+           FROM apps
+           WHERE tenant_id = ?`
         )
+        .bind(tenantId)
         .first<{ apps_total: number; apps_active: number | null }>(),
       this.db
         .prepare(
           `SELECT
              COUNT(*) AS codes_total,
-             SUM(CASE WHEN status = 'unused' AND disabled_at IS NULL THEN 1 ELSE 0 END) AS codes_unused,
-             SUM(CASE WHEN status = 'active' AND disabled_at IS NULL AND (expires_at IS NULL OR expires_at > ?) THEN 1 ELSE 0 END) AS codes_active,
-             SUM(CASE WHEN status != 'deleted' AND disabled_at IS NOT NULL THEN 1 ELSE 0 END) AS codes_disabled,
-             SUM(CASE WHEN status = 'active' AND disabled_at IS NULL AND expires_at IS NOT NULL AND expires_at <= ? THEN 1 ELSE 0 END) AS codes_expired,
-             SUM(CASE WHEN status = 'deleted' THEN 1 ELSE 0 END) AS codes_deleted
-           FROM activation_codes`
+             SUM(CASE WHEN c.status = 'unused' AND c.disabled_at IS NULL THEN 1 ELSE 0 END) AS codes_unused,
+             SUM(CASE WHEN c.status = 'active' AND c.disabled_at IS NULL AND (c.expires_at IS NULL OR c.expires_at > ?) THEN 1 ELSE 0 END) AS codes_active,
+             SUM(CASE WHEN c.status != 'deleted' AND c.disabled_at IS NOT NULL THEN 1 ELSE 0 END) AS codes_disabled,
+             SUM(CASE WHEN c.status = 'active' AND c.disabled_at IS NULL AND c.expires_at IS NOT NULL AND c.expires_at <= ? THEN 1 ELSE 0 END) AS codes_expired,
+             SUM(CASE WHEN c.status = 'deleted' THEN 1 ELSE 0 END) AS codes_deleted
+           FROM activation_codes c
+           JOIN apps a ON a.id = c.app_id
+           WHERE a.tenant_id = ?`
         )
-        .bind(now, now)
+        .bind(now, now, tenantId)
         .first<{
           codes_total: number;
           codes_unused: number | null;
@@ -519,10 +631,12 @@ export class Repository {
           `SELECT
              COUNT(*) AS logs_today,
              SUM(CASE WHEN result = 'failure' AND action IN ('activate', 'verify', 'unbind_device') THEN 1 ELSE 0 END) AS client_failures_today
-           FROM activation_logs
-           WHERE substr(created_at, 1, 10) = ?`
+           FROM activation_logs l
+           LEFT JOIN activation_codes c ON c.id = l.code_id
+           JOIN apps a ON a.id = COALESCE(l.app_id, c.app_id)
+           WHERE substr(l.created_at, 1, 10) = ? AND a.tenant_id = ?`
         )
-        .bind(today)
+        .bind(today, tenantId)
         .first<{ logs_today: number; client_failures_today: number | null }>(),
       this.db
         .prepare(
@@ -538,11 +652,12 @@ export class Repository {
              SUM(CASE WHEN c.status = 'deleted' THEN 1 ELSE 0 END) AS deleted
            FROM apps a
            LEFT JOIN activation_codes c ON c.app_id = a.id
+           WHERE a.tenant_id = ?
            GROUP BY a.id
            ORDER BY total DESC, a.created_at DESC
            LIMIT 8`
         )
-        .bind(now, now)
+        .bind(now, now, tenantId)
         .all<DashboardStats["app_code_ranking"][number]>(),
       this.db
         .prepare(
@@ -552,22 +667,26 @@ export class Repository {
              COUNT(c.id) AS count
            FROM plans p
            LEFT JOIN activation_codes c ON c.plan_id = p.id
+             AND c.app_id IN (SELECT id FROM apps WHERE tenant_id = ?)
            GROUP BY p.id
            ORDER BY count DESC, p.sort_order ASC`
         )
+        .bind(tenantId)
         .all<DashboardStats["plan_distribution"][number]>(),
       this.db
         .prepare(
           `SELECT
-             substr(created_at, 1, 10) AS date,
+             substr(l.created_at, 1, 10) AS date,
              SUM(CASE WHEN result = 'success' THEN 1 ELSE 0 END) AS success,
              SUM(CASE WHEN result = 'failure' THEN 1 ELSE 0 END) AS failure
-           FROM activation_logs
-           WHERE created_at >= ?
-           GROUP BY substr(created_at, 1, 10)
+           FROM activation_logs l
+           LEFT JOIN activation_codes c ON c.id = l.code_id
+           JOIN apps a ON a.id = COALESCE(l.app_id, c.app_id)
+           WHERE l.created_at >= ? AND a.tenant_id = ?
+           GROUP BY substr(l.created_at, 1, 10)
            ORDER BY date ASC`
         )
-        .bind(trendStart)
+        .bind(trendStart, tenantId)
         .all<{ date: string; success: number | null; failure: number | null }>(),
       this.db
         .prepare(
@@ -575,13 +694,15 @@ export class Repository {
              substr(activated_at, 1, 10) AS date,
              COUNT(*) AS activated
            FROM activation_codes
-           WHERE status != 'deleted'
-             AND activated_at IS NOT NULL
-             AND activated_at >= ?
-           GROUP BY substr(activated_at, 1, 10)
+           JOIN apps a ON a.id = activation_codes.app_id
+           WHERE activation_codes.status != 'deleted'
+             AND activation_codes.activated_at IS NOT NULL
+             AND activation_codes.activated_at >= ?
+             AND a.tenant_id = ?
+           GROUP BY substr(activation_codes.activated_at, 1, 10)
            ORDER BY date ASC`
         )
-        .bind(trendStart)
+        .bind(trendStart, tenantId)
         .all<{ date: string; activated: number }>(),
       this.db
         .prepare(
@@ -589,15 +710,17 @@ export class Repository {
              substr(expires_at, 1, 10) AS date,
              COUNT(*) AS expired
            FROM activation_codes
-           WHERE status = 'active'
-             AND disabled_at IS NULL
-             AND expires_at IS NOT NULL
-             AND expires_at >= ?
-             AND expires_at < ?
-           GROUP BY substr(expires_at, 1, 10)
+           JOIN apps a ON a.id = activation_codes.app_id
+           WHERE activation_codes.status = 'active'
+             AND activation_codes.disabled_at IS NULL
+             AND activation_codes.expires_at IS NOT NULL
+             AND activation_codes.expires_at >= ?
+             AND activation_codes.expires_at < ?
+             AND a.tenant_id = ?
+           GROUP BY substr(activation_codes.expires_at, 1, 10)
            ORDER BY date ASC`
         )
-        .bind(trendStart, nextUtcDate(trendDates[trendDates.length - 1]))
+        .bind(trendStart, nextUtcDate(trendDates[trendDates.length - 1]), tenantId)
         .all<{ date: string; expired: number }>(),
       this.db
         .prepare(activeTrendStatement.sql)
@@ -676,50 +799,77 @@ export class Repository {
   async getAdminByUsername(username: string) {
     return await this.db
       .prepare(
-        "SELECT id, username, password_hash, password_salt, created_at, updated_at FROM admin_users WHERE username = ?"
+        `SELECT u.id, u.tenant_id, u.role, u.username, u.password_hash, u.password_salt,
+                u.created_at, u.updated_at, t.name AS tenant_name, t.status AS tenant_status
+         FROM admin_users u LEFT JOIN tenants t ON t.id = u.tenant_id
+         WHERE u.username = ?`
       )
       .bind(username)
-      .first<{
-        id: number;
-        username: string;
-        password_hash: string;
-        password_salt: string;
-        created_at: string;
-        updated_at: string;
-      }>();
+      .first<AdminUserRow>();
+  }
+
+  async getAdminByTenantAndUsername(tenant: string, username: string) {
+    return await this.db
+      .prepare(
+        `SELECT u.id, u.tenant_id, u.role, u.username, u.password_hash, u.password_salt,
+                u.created_at, u.updated_at, t.name AS tenant_name, t.status AS tenant_status
+         FROM admin_users u
+         JOIN tenants t ON t.id = u.tenant_id
+         WHERE u.username = ?
+           AND (t.name = ? OR t.slug = LOWER(?))`
+      )
+      .bind(username, tenant, tenant)
+      .first<AdminUserRow>();
   }
 
   async getAdminById(id: number) {
     return await this.db
-      .prepare("SELECT id, username, created_at, updated_at FROM admin_users WHERE id = ?")
+      .prepare(
+        `SELECT u.id, u.tenant_id, u.role, u.username, u.password_hash, u.password_salt,
+                u.created_at, u.updated_at, t.name AS tenant_name, t.status AS tenant_status
+         FROM admin_users u LEFT JOIN tenants t ON t.id = u.tenant_id
+         WHERE u.id = ?`
+      )
       .bind(id)
-      .first<{ id: number; username: string; created_at: string; updated_at: string }>();
+      .first<AdminUserRow>();
   }
 
   async getAdminCredentialsById(id: number) {
     return await this.db
       .prepare(
-        "SELECT id, username, password_hash, password_salt, created_at, updated_at FROM admin_users WHERE id = ?"
+        `SELECT u.id, u.tenant_id, u.role, u.username, u.password_hash, u.password_salt,
+                u.created_at, u.updated_at, t.name AS tenant_name, t.status AS tenant_status
+         FROM admin_users u LEFT JOIN tenants t ON t.id = u.tenant_id
+         WHERE u.id = ?`
       )
       .bind(id)
-      .first<{
-        id: number;
-        username: string;
-        password_hash: string;
-        password_salt: string;
-        created_at: string;
-        updated_at: string;
-      }>();
+      .first<AdminUserRow>();
   }
 
-  async createAdmin(input: { username: string; passwordHash: string; passwordSalt: string }) {
+  async createAdmin(input: {
+    username: string;
+    passwordHash: string;
+    passwordSalt: string;
+    role: AdminUserRow["role"];
+    tenantId?: number;
+  }) {
     await this.db
       .prepare(
-        `INSERT INTO admin_users (username, password_hash, password_salt, updated_at)
-         VALUES (?, ?, ?, ?)`
+        `INSERT INTO admin_users (tenant_id, role, username, password_hash, password_salt, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?)`
       )
-      .bind(input.username, input.passwordHash, input.passwordSalt, new Date().toISOString())
+      .bind(input.tenantId ?? null, input.role, input.username, input.passwordHash, input.passwordSalt, new Date().toISOString())
       .run();
+  }
+
+  async listTenantAdmins(tenantId: number): Promise<Array<Pick<AdminUserRow, "id" | "username" | "created_at" | "updated_at">>> {
+    const result = await this.db
+      .prepare(
+        "SELECT id, username, created_at, updated_at FROM admin_users WHERE tenant_id = ? AND role = 'tenant_admin' ORDER BY created_at ASC"
+      )
+      .bind(tenantId)
+      .all<Pick<AdminUserRow, "id" | "username" | "created_at" | "updated_at">>();
+    return result.results ?? [];
   }
 
   async updateAdminPassword(input: { adminId: number; passwordHash: string; passwordSalt: string }): Promise<boolean> {
@@ -800,7 +950,7 @@ function normalizeNullableNumbers<T extends Record<string, unknown>>(items: T[])
   });
 }
 
-export function buildDashboardActiveTrendStatement(dates: string[]): {
+export function buildDashboardActiveTrendStatement(dates: string[], tenantId: number): {
   sql: string;
   bindings: SqlValue[];
 } {
@@ -813,13 +963,14 @@ export function buildDashboardActiveTrendStatement(dates: string[]): {
       FROM trend_dates d
       LEFT JOIN activation_codes c
         ON c.status = 'active'
+       AND c.app_id IN (SELECT id FROM apps WHERE tenant_id = ?)
        AND c.disabled_at IS NULL
        AND c.activated_at IS NOT NULL
        AND c.activated_at < d.next_date
        AND (c.expires_at IS NULL OR c.expires_at >= d.next_date)
       GROUP BY d.date
       ORDER BY d.date ASC`,
-    bindings: dates.flatMap((date) => [date, nextUtcDate(date)])
+    bindings: [...dates.flatMap((date) => [date, nextUtcDate(date)]), tenantId]
   };
 }
 

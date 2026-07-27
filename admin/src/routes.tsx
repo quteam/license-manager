@@ -6,7 +6,8 @@ import {
   FileTextOutlined,
   KeyOutlined,
   PlayCircleOutlined,
-  SignatureOutlined
+  SignatureOutlined,
+  TeamOutlined
 } from "@ant-design/icons";
 import type { MenuDataItem } from "@ant-design/pro-components";
 import { lazy, type ReactNode } from "react";
@@ -19,8 +20,9 @@ const LogsPage = lazy(() => import("./pages/LogsPage").then((module) => ({ defau
 const DocsPage = lazy(() => import("./pages/DocsPage").then((module) => ({ default: module.DocsPage })));
 const SdkPage = lazy(() => import("./pages/SdkPage").then((module) => ({ default: module.SdkPage })));
 const PlaygroundPage = lazy(() => import("./pages/PlaygroundPage").then((module) => ({ default: module.PlaygroundPage })));
+const TenantsPage = lazy(() => import("./pages/TenantsPage").then((module) => ({ default: module.TenantsPage })));
 
-export type PageKey = "dashboard" | "apps" | "codes" | "generate" | "logs" | "docs" | "sdk" | "playground";
+export type PageKey = "dashboard" | "tenants" | "apps" | "codes" | "generate" | "logs" | "docs" | "sdk" | "playground";
 
 type AdminRoute = MenuDataItem & {
   key: PageKey;
@@ -41,6 +43,13 @@ export function getAdminPageRoutes(t: Translate): AdminRoute[] {
     name: t("nav.dashboard"),
     icon: <DashboardOutlined />,
     element: <DashboardPage />,
+  },
+  {
+    key: "tenants",
+    path: "/tenants",
+    name: t("nav.tenants"),
+    icon: <TeamOutlined />,
+    element: <TenantsPage />
   },
   {
     key: "apps",
@@ -96,6 +105,7 @@ export function getAdminPageRoutes(t: Translate): AdminRoute[] {
 
 const routePaths: Array<[string, PageKey]> = [
   ["/dashboard", "dashboard"],
+  ["/tenants", "tenants"],
   ["/apps", "apps"],
   ["/codes", "codes"],
   ["/generate", "generate"],
@@ -111,7 +121,7 @@ export function getRouteMap(routes: AdminRoute[]) {
   return Object.fromEntries(routes.map((route) => [route.key, route])) as Record<PageKey, AdminRoute>;
 }
 
-export function getMenuRoutes(routes: AdminRoute[], t: Translate): MenuDataItem[] {
+export function getMenuRoutes(routes: AdminRoute[], t: Translate, isSuperAdmin: boolean): MenuDataItem[] {
   const menuRouteMap = Object.fromEntries(routes.map(({ element: _element, ...route }) => [route.key, route])) as Record<
     PageKey,
     MenuDataItem
@@ -119,6 +129,12 @@ export function getMenuRoutes(routes: AdminRoute[], t: Translate): MenuDataItem[
 
   return [
     menuRouteMap.dashboard,
+    ...(isSuperAdmin ? [{
+      key: "system",
+      path: "/system",
+      name: t("nav.system"),
+      children: [menuRouteMap.tenants]
+    }] : []),
     {
       key: "license",
       path: "/license",

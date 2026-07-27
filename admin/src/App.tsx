@@ -2,7 +2,7 @@ import { App as AntApp, ConfigProvider } from "antd";
 import enUS from "antd/locale/en_US";
 import zhCN from "antd/locale/zh_CN";
 import { lazy, Suspense, useEffect, useState } from "react";
-import { clearToken, getToken, setToken, apiRequest } from "./api";
+import { clearToken, getToken, setTenantId, setToken, apiRequest } from "./api";
 import { LanguageProvider, useI18n } from "./i18n";
 import type { AdminUser } from "./types";
 
@@ -35,7 +35,12 @@ function LocalizedApp() {
       return;
     }
     apiRequest<{ admin: AdminUser }>("/api/admin/me")
-      .then((data) => setAdmin(data.admin))
+      .then((data) => {
+        setAdmin(data.admin);
+        if (data.admin.role === "tenant_admin" && data.admin.tenant_id) {
+          setTenantId(data.admin.tenant_id);
+        }
+      })
       .catch(() => {
         clearToken();
         updateToken(null);

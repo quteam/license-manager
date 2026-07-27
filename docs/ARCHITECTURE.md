@@ -19,9 +19,9 @@ Admin browser                         Client application
 ```
 
 - 管理后台和 API 同源部署，非 `/api/*` 请求回退到 Worker assets。
-- 管理端使用管理员 JWT；客户端使用应用 ID 和应用密钥，不共享管理员鉴权。
+- 管理端使用管理员 JWT；客户端使用应用 ID 和应用密钥，不共享管理员鉴权。管理端按租户隔离业务数据。
 - 业务数据只写入 D1；激活码认证值、应用密钥和设备指纹保存不可逆 HMAC，激活码另保留非认证用途的后缀。
-- 系统当前是单租户、单 D1、单 Worker 部署模型。
+- 系统是多租户、单 D1、单 Worker 部署模型；应用直接归属租户，激活码、批次和日志通过应用继承租户边界。
 
 ## 顶层结构
 
@@ -54,7 +54,7 @@ index.ts
 | `constants.ts` | 运行时状态、动作、错误码及派生类型 | 可变配置和展示文案 |
 | `crypto.ts` | 随机值、HMAC、密码哈希、JWT、常量时间比较 | 业务流程 |
 | `http.ts` | JSON 读取、通用参数校验、成功/失败 envelope | 领域校验 |
-| `middleware.ts` | 管理员 Bearer Token 校验和 principal 注入 | 管理员业务操作 |
+| `middleware.ts` | 管理员 Bearer Token 校验、角色/租户状态校验、principal 注入和租户上下文解析 | 管理员业务操作 |
 | `time.ts` | ISO 时间、自然月/年计算、过期和剩余时间 | 套餐选择逻辑 |
 | `types.ts` | Worker bindings、数据库行、响应和错误类型 | 重复运行时枚举 |
 
@@ -98,12 +98,18 @@ App.tsx
 request
   -> env validation
   -> Bearer middleware
+  -> resolve tenant context and role
   -> route input validation
   -> service business validation
   -> repository conditional write
   -> audit log when the action is auditable
   -> { ok: true, data }
 ```
+
+- 租户管理员的上下文固定为账号的 `tenant_id`，请求头不能覆盖。
+- 超级管理员访问租户业务接口时必须发送 `X-Tenant-Id`；租户管理接口不依赖该上下文。
+- middleware 每次请求重新读取管理员角色和租户状态，租户禁用后已有 JWT 不能继续访问。
+- 管理员登录先按租户名称或 slug 与用户名联合定位账号，再校验密码并签发 JWT。
 
 客户端授权请求：
 

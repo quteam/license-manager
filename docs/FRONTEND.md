@@ -6,6 +6,7 @@
 
 - `admin/src/App.tsx`：顶层 `ConfigProvider`、Ant Design `App` 容器、登录态、当前管理员加载和登录/后台入口按需加载。
 - `admin/src/components/Shell.tsx`：基于 `ProLayout` 混合布局的后台主布局、顶部品牌栏、侧边菜单、顶部用户菜单和页面切换。
+- `admin/src/pages/TenantsPage.tsx`：超级管理员的租户列表、创建、编辑、状态、密码重设和删除操作。
 - `admin/src/routes.tsx`：后台菜单、页面路径和页面组件配置，业务页面组件使用 `React.lazy` 按需加载。
 - `admin/src/components/Login.tsx`：登录页。
 - `admin/src/components/ChangePasswordModal.tsx`：修改密码弹窗。
@@ -38,12 +39,16 @@
 - 后台路由由 `Shell` 根据 `routes.tsx` 统一管理，页面路径需同步到 `ProLayout` 的菜单配置，通过菜单切换同步浏览器地址；页面内容由 `Shell` 使用 `Suspense` 承载加载态。
 - 面板首页为默认入口，路径为 `/dashboard`。
 - 后台菜单采用 Ant Design Pro 混合布局和 group 侧边菜单，工作台为一级入口，“应用管理”“激活码”“生成激活码”归入“授权管理”，“操作日志”归入“审计管理”，“接入文档”“SDK”和“Playground”归入“开发支持”。
+- 超级管理员额外看到“系统管理 / 租户管理”和顶部租户切换器；租户管理员不显示这些入口。
+- 超级管理员切换租户后，现有业务页面重新挂载并通过 `admin/src/api.ts` 发送 `X-Tenant-Id`。租户管理员固定使用账号租户，前端选择值不参与其授权判断。
 - 页面级 `PageContainer` 由 `Shell` 统一承载，除仪表盘外包含页面标题和面包屑；业务页面默认只渲染页面内容，不再重复包裹 `PageContainer`。
 - 页面需要在标题后展示局部控件时，通过 `components/PageTitleExtraContext.tsx` 注册标题附加内容，并在页面卸载时清理，不在业务页面重复创建 `PageContainer`。
 - 管理后台可见文案统一走 `admin/src/i18n/`，支持中文和英文；默认语言跟随系统语言，用户切换后写入浏览器本地存储。
 - 登录页提供忘记密码入口，通过重设密码弹窗调用 `/api/recovery/admin-password`，请求体提交用户名、恢复密钥和新密码。
+- 登录页依次要求租户名称或 slug、用户名和密码，三项均为必填；租户字段只随登录 JSON 请求体发送，不写入 URL。
 - 日期展示保持 `YYYY-MM-DD HH:mm:ss` 风格，优先复用 `shared/format.tsx`。
 - 应用管理页默认只展示应用列表；新增和修改应用使用弹窗承载表单，应用描述和授权码购买链接不必填，购买链接只接受 `http` 或 `https` 地址并在列表中提供外链入口；创建或更换后的 `app_secret` 使用一次性弹窗展示；应用使用说明用弹窗展示并提供可复制代码，代码中不得回显 `app_secret`；删除应用和更换密钥需二次确认。
+- 租户管理页创建租户时同时收集初始管理员用户名和至少 8 位密码；支持修改名称/slug、启禁用、重设管理员密码，以及删除没有应用的非默认租户。
 - 接入文档页提供客户端接口说明、接口流程图、可复制调用示例和现成 demo，demo 包含 TypeScript SDK、JavaScript SDK、cURL 和 HTML 示例；Playground 页提供在线真实接口调用，不保存或回显 `app_secret`，调用真实客户端接口时需要提示会写入日志或改变激活状态。
 - SDK 页提供可复制、可下载的 React、Vue、React Native、Angular、Svelte、Electron、Flutter/Dart 和 TypeScript Core 组件代码，根据当前后台地址和所选应用自动填入 API 基础地址与 `app_id`，不得请求、保存或回显真实 `app_secret`。
 - 管理后台列表默认展示序号列。

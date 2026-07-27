@@ -1,14 +1,17 @@
 import { addDaysIso, addMonthsIso, addYearsIso, isExpired, nowIso, secondsUntil } from "./time";
 import { requireEnv } from "./config";
 import {
+  ADMIN_ROLE,
   APP_STATUS,
   CODE_BULK_ACTION,
   CODE_STATUS,
   LOG_ACTION,
   LOG_RESULT,
+  TENANT_STATUS,
   type AppStatus,
   type CodeBulkAction,
-  type LogAction
+  type LogAction,
+  type TenantStatus
 } from "./constants";
 import { codeSuffix, generateActivationCode, generateRandomToken, hashPassword, hmacSha256, normalizeCode, timingSafeEqual, verifyPassword } from "./crypto";
 import { Repository } from "./repository";
@@ -37,24 +40,113 @@ export class LicenseService {
     await this.repo.createAdmin({
       username,
       passwordHash: passwordRecord.hash,
-      passwordSalt: passwordRecord.salt
+      passwordSalt: passwordRecord.salt,
+      role: ADMIN_ROLE.SUPER_ADMIN,
+      tenantId: 1
     });
   }
 
-  async authenticateAdmin(username: string, password: string) {
+  async authenticateAdmin(tenant: string, username: string, password: string) {
     await this.ensureBootstrapAdmin();
-    const admin = await this.repo.getAdminByUsername(username);
+    const admin = await this.repo.getAdminByTenantAndUsername(tenant, username);
     if (!admin) {
-      throw new ApiError(401, "UNAUTHORIZED", "Invalid username or password");
+      throw new ApiError(401, "UNAUTHORIZED", "Invalid tenant, username or password");
     }
     const valid = await verifyPassword(password, admin.password_salt, admin.password_hash);
     if (!valid) {
-      throw new ApiError(401, "UNAUTHORIZED", "Invalid username or password");
+      throw new ApiError(401, "UNAUTHORIZED", "Invalid tenant, username or password");
+    }
+    if (admin.role === ADMIN_ROLE.TENANT_ADMIN && admin.tenant_status !== TENANT_STATUS.ACTIVE) {
+      throw new ApiError(403, "FORBIDDEN", "Tenant is disabled");
     }
     return {
       id: admin.id,
-      username: admin.username
+      username: admin.username,
+      role: admin.role,
+      tenant_id: admin.tenant_id,
+      tenant_name: admin.tenant_name
     };
+  }
+
+  async createTenant(input: {
+    name: string;
+    slug: string;
+    status: TenantStatus;
+    adminUsername: string;
+    adminPassword: string;
+  }) {
+    validateTenantSlug(input.slug);
+    validateNewPassword(input.adminPassword, "Admin password");
+    if (await this.repo.getAdminByUsername(input.adminUsername)) {
+      throw new ApiError(409, "CONFLICT", "Admin username already exists");
+    }
+    let tenant;
+    try {
+      const passwordRecord = await hashPassword(input.adminPassword);
+      tenant = await this.repo.createTenant({
+        name: input.name,
+        slug: input.slug,
+        status: input.status,
+        adminUsername: input.adminUsername,
+        passwordHash: passwordRecord.hash,
+        passwordSalt: passwordRecord.salt
+      });
+    } catch (error) {
+      if (String(error).includes("UNIQUE")) {
+        throw new ApiError(409, "CONFLICT", "Tenant slug or admin username already exists");
+      }
+      throw error;
+    }
+    return { tenant, admins: await this.repo.listTenantAdmins(tenant.id) };
+  }
+
+  async updateTenant(input: { tenantId: number; name: string; slug: string }) {
+    validateTenantSlug(input.slug);
+    try {
+      const tenant = await this.repo.updateTenant({ id: input.tenantId, name: input.name, slug: input.slug });
+      if (!tenant) {
+        throw new ApiError(404, "NOT_FOUND", "Tenant not found");
+      }
+      return { tenant };
+    } catch (error) {
+      if (String(error).includes("UNIQUE")) {
+        throw new ApiError(409, "CONFLICT", "Tenant slug already exists");
+      }
+      throw error;
+    }
+  }
+
+  async updateTenantStatus(tenantId: number, status: TenantStatus) {
+    if (!(await this.repo.updateTenantStatus(tenantId, status))) {
+      throw new ApiError(404, "NOT_FOUND", "Tenant not found");
+    }
+    return { updated: true };
+  }
+
+  async deleteTenant(tenantId: number) {
+    const tenant = await this.repo.getTenantById(tenantId);
+    if (!tenant) {
+      throw new ApiError(404, "NOT_FOUND", "Tenant not found");
+    }
+    if (!(await this.repo.deleteTenantIfEmpty(tenantId))) {
+      throw new ApiError(409, "CONFLICT", "Tenant has applications or is protected and cannot be deleted");
+    }
+    return { deleted: true };
+  }
+
+  async resetTenantAdminPassword(input: { tenantId: number; username: string; newPassword: string }) {
+    validateNewPassword(input.newPassword, "New password");
+    const admin = await this.repo.getAdminByUsername(input.username);
+    if (!admin || admin.role !== ADMIN_ROLE.TENANT_ADMIN || admin.tenant_id !== input.tenantId) {
+      throw new ApiError(404, "NOT_FOUND", "Tenant administrator not found");
+    }
+    const passwordRecord = await hashPassword(input.newPassword);
+    await this.repo.updateAdminPassword({
+      adminId: admin.id,
+      passwordHash: passwordRecord.hash,
+      passwordSalt: passwordRecord.salt
+    });
+    return { updated: true };
   }
 
   async changeAdminPassword(input: { adminId: number; currentPassword: string; newPassword: string }) {
@@ -121,11 +213,12 @@ export class LicenseService {
     };
   }
 
-  async createApp(input: { name: string; description?: string; purchaseUrl?: string; platform: string; status?: AppStatus }) {
+  async createApp(input: { tenantId: number; name: string; description?: string; purchaseUrl?: string; platform: string; status?: AppStatus }) {
     const appId = `app_${generateRandomToken(12)}`;
     const appSecret = `sec_${generateRandomToken(32)}`;
     const appSecretHash = await this.hashAppSecret(appSecret);
     const app = await this.repo.createApp({
+      tenantId: input.tenantId,
       appId,
       name: input.name,
       description: input.description,
@@ -140,7 +233,7 @@ export class LicenseService {
     };
   }
 
-  async updateApp(input: { appId: string; name: string; description?: string; purchaseUrl?: string; platform: string }) {
+  async updateApp(input: { tenantId: number; appId: string; name: string; description?: string; purchaseUrl?: string; platform: string }) {
     const app = await this.repo.updateApp(input);
     if (!app) {
       throw new ApiError(404, "NOT_FOUND", "App not found");
@@ -150,12 +243,12 @@ export class LicenseService {
     };
   }
 
-  async updateAppStatus(input: { appId: string; status: AppStatus; adminId: number }) {
-    const app = await this.repo.getAppByPublicId(input.appId);
+  async updateAppStatus(input: { tenantId: number; appId: string; status: AppStatus; adminId: number }) {
+    const app = await this.repo.getAppByPublicId(input.appId, input.tenantId);
     if (!app) {
       throw new ApiError(404, "NOT_FOUND", "App not found");
     }
-    const updated = await this.repo.updateAppStatus(input.appId, input.status);
+    const updated = await this.repo.updateAppStatus(input.appId, input.tenantId, input.status);
     if (!updated) {
       throw new ApiError(404, "NOT_FOUND", "App not found");
     }
@@ -170,14 +263,14 @@ export class LicenseService {
     };
   }
 
-  async rotateAppSecret(input: { appId: string; adminId: number }) {
-    const app = await this.repo.getAppByPublicId(input.appId);
+  async rotateAppSecret(input: { tenantId: number; appId: string; adminId: number }) {
+    const app = await this.repo.getAppByPublicId(input.appId, input.tenantId);
     if (!app) {
       throw new ApiError(404, "NOT_FOUND", "App not found");
     }
     const appSecret = `sec_${generateRandomToken(32)}`;
     const appSecretHash = await this.hashAppSecret(appSecret);
-    const updatedApp = await this.repo.updateAppSecretHash(input.appId, appSecretHash);
+    const updatedApp = await this.repo.updateAppSecretHash(input.appId, input.tenantId, appSecretHash);
     if (!updatedApp) {
       throw new ApiError(404, "NOT_FOUND", "App not found");
     }
@@ -193,8 +286,8 @@ export class LicenseService {
     };
   }
 
-  async deleteApp(appId: string) {
-    const app = await this.repo.getAppByPublicId(appId);
+  async deleteApp(appId: string, tenantId: number) {
+    const app = await this.repo.getAppByPublicId(appId, tenantId);
     if (!app) {
       throw new ApiError(404, "NOT_FOUND", "App not found");
     }
@@ -208,13 +301,14 @@ export class LicenseService {
   }
 
   async generateCodes(input: {
+    tenantId: number;
     appId: string;
     planCode: string;
     quantity: number;
     note?: string;
     adminId: number;
   }) {
-    const app = await this.repo.getAppByPublicId(input.appId);
+    const app = await this.repo.getAppByPublicId(input.appId, input.tenantId);
     if (!app) {
       throw new ApiError(404, "NOT_FOUND", "App not found");
     }
@@ -433,8 +527,8 @@ export class LicenseService {
     }
   }
 
-  async deleteCode(codeId: number, adminId: number) {
-    const deleted = await this.repo.softDeleteCode(codeId);
+  async deleteCode(codeId: number, adminId: number, tenantId: number) {
+    const deleted = await this.repo.softDeleteCode(codeId, tenantId);
     if (!deleted) {
       throw new ApiError(404, "NOT_FOUND", "Activation code not found");
     }
@@ -446,10 +540,11 @@ export class LicenseService {
     });
   }
 
-  async updateCodeDisabled(input: { codeId: number; disabled: boolean; adminId: number }) {
+  async updateCodeDisabled(input: { codeId: number; tenantId: number; disabled: boolean; adminId: number }) {
     const changedAt = nowIso();
     const updated = await this.repo.updateCodeDisabled({
       codeId: input.codeId,
+      tenantId: input.tenantId,
       disabled: input.disabled,
       changedAt
     });
@@ -467,9 +562,10 @@ export class LicenseService {
     };
   }
 
-  async manuallyUnbindDevice(input: { codeId: number; adminId: number }) {
+  async manuallyUnbindDevice(input: { codeId: number; tenantId: number; adminId: number }) {
     const unbound = await this.repo.manuallyUnbindDevice({
       codeId: input.codeId,
+      tenantId: input.tenantId,
       changedAt: nowIso()
     });
     if (!unbound) {
@@ -486,10 +582,10 @@ export class LicenseService {
     };
   }
 
-  async bulkUpdateCodes(input: { codeIds: number[]; action: CodeBulkAction; adminId: number }) {
+  async bulkUpdateCodes(input: { codeIds: number[]; tenantId: number; action: CodeBulkAction; adminId: number }) {
     let updated = 0;
     for (const codeId of input.codeIds) {
-      const changed = await this.updateCodeByBulkAction(codeId, input.action);
+      const changed = await this.updateCodeByBulkAction(codeId, input.action, input.tenantId);
       if (!changed) {
         continue;
       }
@@ -519,6 +615,9 @@ export class LicenseService {
     if (app.status !== APP_STATUS.ACTIVE) {
       throw new ApiError(403, "APP_DISABLED", "App is disabled");
     }
+    if (app.tenant_status !== TENANT_STATUS.ACTIVE) {
+      throw new ApiError(403, "APP_DISABLED", "Tenant is disabled");
+    }
     const secretHash = await this.hashAppSecret(appSecret);
     if (!timingSafeEqual(secretHash, app.app_secret_hash)) {
       throw new ApiError(401, "INVALID_APP_SECRET", "Invalid app secret");
@@ -526,12 +625,13 @@ export class LicenseService {
     return app;
   }
 
-  private async updateCodeByBulkAction(codeId: number, action: CodeBulkAction): Promise<boolean> {
+  private async updateCodeByBulkAction(codeId: number, action: CodeBulkAction, tenantId: number): Promise<boolean> {
     if (action === CODE_BULK_ACTION.DELETE) {
-      return await this.repo.softDeleteCode(codeId);
+      return await this.repo.softDeleteCode(codeId, tenantId);
     }
     return await this.repo.updateCodeDisabled({
       codeId,
+      tenantId,
       disabled: action === CODE_BULK_ACTION.DISABLE,
       changedAt: nowIso()
     });
@@ -645,8 +745,20 @@ export class LicenseService {
 }
 
 function stripAppSecret(app: AppRow) {
-  const { app_secret_hash: _appSecretHash, ...safeApp } = app;
+  const { app_secret_hash: _appSecretHash, tenant_status: _tenantStatus, ...safeApp } = app;
   return safeApp;
+}
+
+function validateTenantSlug(slug: string): void {
+  if (!/^[a-z0-9][a-z0-9-]{1,62}$/.test(slug)) {
+    throw new ApiError(400, "BAD_REQUEST", "Tenant slug must use 2-63 lowercase letters, numbers or hyphens");
+  }
+}
+
+function validateNewPassword(password: string, label: string): void {
+  if (password.length < 8) {
+    throw new ApiError(400, "BAD_REQUEST", `${label} must be at least 8 characters`);
+  }
 }
 
 function toClientAppInfo(app: AppRow) {

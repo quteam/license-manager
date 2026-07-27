@@ -20,10 +20,26 @@ export type ApiResponse<T> = ApiSuccess<T> | ApiFailure;
 export type AdminUser = {
   id: number;
   username: string;
+  role: "super_admin" | "tenant_admin";
+  tenant_id: number | null;
+  tenant_name: string | null;
+};
+
+export type TenantItem = {
+  id: number;
+  name: string;
+  slug: string;
+  status: AppStatus;
+  admin_count: number;
+  admin_usernames: string | null;
+  app_count: number;
+  created_at: string;
+  updated_at: string;
 };
 
 export type AppItem = {
   id: number;
+  tenant_id: number;
   app_id: string;
   name: string;
   description: string | null;

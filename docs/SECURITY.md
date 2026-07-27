@@ -58,9 +58,14 @@ pnpm wrangler secret put ADMIN_BOOTSTRAP_PASSWORD --config wrangler.production.t
 ## 接口安全
 
 - `/api/admin/*` 必须通过 Bearer Token 鉴权。
+- 管理员登录按租户名称或 slug 与用户名联合查询；租户、用户名和密码错误使用同一响应，避免枚举租户或账号。
+- 租户管理接口只允许 `super_admin`；租户管理员的租户范围只从数据库 principal 获取，忽略 `X-Tenant-Id` 覆盖。
+- 超级管理员访问租户业务接口必须提供 `X-Tenant-Id`，服务端确认租户存在且启用后才执行查询或写入。
+- 应用、激活码、日志和 dashboard 的管理端 SQL 必须包含租户约束；按资源 ID 更新也必须再次校验资源所属租户。
 - `/api/recovery/admin-password` 不属于 `/api/admin/*`，仅用于登录失败后的管理员密码恢复；请求体必须校验 bootstrap 用户名和 `ADMIN_BOOTSTRAP_PASSWORD`，不得通过 URL 传递恢复密钥。
 - 客户端接口必须同时校验 `app_id` 和 `app_secret`。
 - 禁用状态的应用不得激活、校验或解绑。
+- 禁用状态的租户不得登录租户管理员，也不得执行该租户的客户端授权操作。
 - 所有用户输入必须经过基础类型和范围校验。
 - SQL 必须使用 prepared statement 和 `.bind(...)`，不得拼接用户输入。
 - 返回给前端和客户端的错误信息应稳定、简洁，不暴露内部异常、SQL 或密钥信息。
@@ -78,6 +83,7 @@ pnpm wrangler secret put ADMIN_BOOTSTRAP_PASSWORD --config wrangler.production.t
 ## 前端安全
 
 - 管理后台 token 存储和清理统一走 `admin/src/api.ts`。
+- 前端保存的当前租户 ID 只用于超级管理员的操作上下文，不是授权依据；后端始终执行角色和归属校验。
 - 接口 401 或会话失效时必须清理 token 并返回登录页。
 - 前端不得展示应用密钥哈希、设备哈希、设备指纹或其他敏感派生值/明文；设备只展示是否已绑定。
 - Playground 和 SDK/文档示例不得持久化、预填或回显真实 `app_secret`。

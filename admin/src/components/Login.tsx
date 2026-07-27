@@ -1,4 +1,4 @@
-import { LockOutlined, UserOutlined } from "@ant-design/icons";
+import { LockOutlined, TeamOutlined, UserOutlined } from "@ant-design/icons";
 import { ProForm, ProFormText } from "@ant-design/pro-components";
 import { App as AntApp, Button } from "antd";
 import { useState } from "react";
@@ -53,6 +53,12 @@ export function Login({ onLogin }: LoginProps) {
             }
           }}
         >
+          <ProFormText
+            name="tenant"
+            fieldProps={{ autoComplete: "organization", prefix: <TeamOutlined />, size: "large" }}
+            placeholder={t("auth.tenantPlaceholder")}
+            rules={[{ required: true, message: t("auth.tenantRequired") }]}
+          />
           <ProFormText
             name="username"
             fieldProps={{ autoComplete: "username", prefix: <UserOutlined />, size: "large" }}

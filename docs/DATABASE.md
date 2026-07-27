@@ -8,15 +8,17 @@ Cloudflare D1 是唯一持久化存储。Schema 只通过根目录 `migrations/`
 | --- | --- |
 | `0001_initial.sql` | 创建应用、套餐、管理员、生成批次、激活码、日志、索引和内置套餐 |
 | `0002_add_purchase_url.sql` | 为 `apps` 增加可选 `purchase_url` |
+| `0003_add_tenants.sql` | 新增租户和管理员角色，回填默认租户归属，增加租户索引与应用归属触发器 |
 
 已发布迁移不可修改来表达线上变化。任何 schema 变化都新增下一序号迁移，并保证从空库和已有库都能按顺序执行。
 
 ## 关系模型
 
 ```text
-apps ────────┬─< activation_batches >─ plans
-             ├─< activation_codes  >── plans
-             └─< activation_logs
+tenants ─────┬─< apps ────────┬─< activation_batches >─ plans
+             │                ├─< activation_codes  >── plans
+             │                └─< activation_logs
+             └─< admin_users
 
 admin_users ─┬─< activation_batches
              └─< activation_codes
@@ -24,6 +26,7 @@ admin_users ─┬─< activation_batches
 activation_batches ─< activation_codes ─< activation_logs
 ```
 
+- `tenants`：租户名称、唯一 slug 和启用状态。
 - `apps`：应用元数据、启用状态、可选购买链接和应用密钥 HMAC。
 - `plans`：套餐代码、名称、基础天数和排序。
 - `admin_users`：管理员用户名、密码哈希和 salt。
@@ -36,6 +39,7 @@ activation_batches ─< activation_codes ─< activation_logs
 ### `apps`
 
 - `app_id` 全局唯一，是对外公开标识；内部关联使用自增 `id`。
+- `tenant_id` 必须指向租户；迁移触发器阻止新增或更新为空归属。
 - `status` 只能为 `active` 或 `disabled`。
 - `app_secret_hash` 保存 HMAC，不保存明文密钥。
 - `description` 和 `purchase_url` 可为空；`purchase_url` 的 `http`/`https` 校验在 HTTP 层完成。
@@ -51,8 +55,16 @@ activation_batches ─< activation_codes ─< activation_logs
 ### `admin_users`
 
 - `username` 全局唯一。
+- `role` 只能为 `super_admin` 或 `tenant_admin`；租户管理员必须关联 `tenant_id`，超级管理员可以为空。
 - 密码使用随机 salt 和哈希保存；密码更新必须同时替换 `password_hash` 和 `password_salt`。
 - bootstrap 配置不直接写入表，只有初始化或恢复流程会创建/更新对应管理员。
+
+### `tenants`
+
+- `slug` 全局唯一，只接受服务层校验后的 2 到 63 位小写字母、数字和连字符。
+- `status` 只能为 `active` 或 `disabled`。
+- ID 为 1 的默认租户承接迁移前已有应用，不允许删除。
+- 非默认租户仅在没有应用时可删除，删除与其租户管理员使用同一 D1 batch。
 
 ### `activation_batches`
 
@@ -143,6 +155,8 @@ END
 当前关键索引：
 
 - `idx_apps_app_id`
+- `idx_apps_tenant_created`
+- `idx_admin_users_tenant`
 - `idx_codes_app_plan_status`
 - `idx_codes_suffix`
 - `idx_codes_expires_at`

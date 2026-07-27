@@ -6,6 +6,22 @@ export const APP_STATUS = {
 export const APP_STATUS_VALUES = [APP_STATUS.ACTIVE, APP_STATUS.DISABLED] as const;
 export type AppStatus = (typeof APP_STATUS_VALUES)[number];
 
+export const TENANT_STATUS = {
+  ACTIVE: "active",
+  DISABLED: "disabled"
+} as const;
+
+export const TENANT_STATUS_VALUES = [TENANT_STATUS.ACTIVE, TENANT_STATUS.DISABLED] as const;
+export type TenantStatus = (typeof TENANT_STATUS_VALUES)[number];
+
+export const ADMIN_ROLE = {
+  SUPER_ADMIN: "super_admin",
+  TENANT_ADMIN: "tenant_admin"
+} as const;
+
+export const ADMIN_ROLE_VALUES = [ADMIN_ROLE.SUPER_ADMIN, ADMIN_ROLE.TENANT_ADMIN] as const;
+export type AdminRole = (typeof ADMIN_ROLE_VALUES)[number];
+
 export const CODE_STATUS = {
   UNUSED: "unused",
   ACTIVE: "active",
@@ -126,6 +142,10 @@ export type ErrorCode = (typeof ERROR_CODE_VALUES)[number];
 
 export function isAppStatus(value: string): value is AppStatus {
   return includesValue(APP_STATUS_VALUES, value);
+}
+
+export function isTenantStatus(value: string): value is TenantStatus {
+  return includesValue(TENANT_STATUS_VALUES, value);
 }
 
 export function isCodeListStatus(value: string): value is CodeListStatus {
