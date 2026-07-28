@@ -2,7 +2,7 @@
 
 English | [简体中文](README.zh-CN.md)
 
-A lightweight, self-hostable license key management system for independent software, desktop tools, plugins, scripts, and internal systems that need license issuance, activation, verification, device transfer, suspension, and audit trails.
+A lightweight, self-hostable, multi-tenant software licensing system for independent software, desktop tools, plugins, scripts, and internal systems. It covers the full workflow from application onboarding and batch issuance to device activation, verification, controlled transfer, and audit trails.
 
 The backend and database run on Cloudflare Workers and D1. APIs are built with Hono, and the admin console is built with React, Vite, and Ant Design Pro. The Worker serves both the backend API and the admin static assets, so the system can be deployed to the Cloudflare edge with low operational overhead.
 
@@ -15,21 +15,40 @@ The backend and database run on Cloudflare Workers and D1. APIs are built with H
 
 These credentials are public and intended only for the online demo. Do not reuse the password elsewhere; demo data may be reset periodically.
 
+## Business Highlights
+
+- **License time starts when the customer starts using it:** Weekly, monthly, quarterly, and yearly licenses begin at first activation, so generating or distributing keys early does not consume the customer's license period.
+- **One key per device without making device changes painful:** Activation is device-bound and idempotent on the same device. Users can self-unbind within transfer and cooldown limits, while administrators can handle eligible exceptions.
+- **Operate multiple tenants from one deployment:** Super administrators manage tenants and explicitly switch business context; tenant administrators can access only the data assigned to their tenant.
+- **Minimize stored credential exposure:** Full license keys and application secrets are shown only once, device fingerprints are never persisted, and long-term storage contains only HMAC values or key suffixes.
+- **Observe and audit the licensing lifecycle:** The dashboard surfaces license inventory, activation trends, and client failures. Searchable logs cover important admin actions and client authorization outcomes, while soft deletion preserves history.
+- **Move from API exploration to integration in one console:** Built-in API docs, workflow guidance, copyable examples, multi-framework SDK/component samples, and a live API Playground shorten the path from application creation to client integration.
+
 ## Use Cases
 
 - Issue license keys for one or more applications.
 - Separate licenses by platform, such as Windows, macOS, Linux, iOS, Android, or Web.
 - Let clients activate and verify licenses with `app_id`, `app_secret`, a license key, and a device fingerprint.
 - Enforce one license per device while allowing controlled self-service device transfers.
+- Operate licenses for multiple customers or business units while isolating tenant data and administrative access.
 - Manage license states, filters, disable/enable/delete actions, and audit logs from an admin console.
-- Avoid storing full plaintext license keys, application secrets, or device fingerprints.
+- Use dashboard metrics, audit logs, and stable failure codes to understand license usage and troubleshoot client issues.
+- Self-host the licensing service without retaining full plaintext license keys, application secrets, or device fingerprints.
 
-## Features
+## Feature Overview
+
+### Multi-Tenancy and Administration
+
+- Applications, generation batches, license keys, and logs are isolated by tenant, with tenant constraints enforced for every server-side resource access.
+- Super administrators can create, enable, disable, and delete eligible tenants, reset tenant administrator passwords, and explicitly switch tenant context for business operations.
+- Tenant administrators remain scoped to their assigned tenant. Disabling a tenant blocks its admin sessions and client authorization requests without rewriting existing license state.
+- Administrators have login, 8-hour JWT sessions, password changes, and bootstrap-key password recovery.
 
 ### Application Licensing
 
 - Multi-application and multi-platform license management.
-- Applications can be enabled, disabled, deleted, and have their secrets rotated.
+- Applications support descriptions and purchase links, and can be enabled, disabled, conditionally deleted, or have their secrets rotated.
+- Disabling an application immediately blocks its client authorization operations while preserving the original state of its license keys.
 - Application secrets are shown only once on creation or rotation; the database stores only HMAC hashes.
 
 ### License Keys
@@ -38,7 +57,8 @@ These credentials are public and intended only for the online demo. Do not reuse
 - Built-in weekly, monthly, quarterly, and yearly plans.
 - Plaintext license keys are shown only once in the generation response; full plaintext keys are never stored.
 - Filter by status, application, platform, plan, keyword, and other conditions.
-- Disable, enable, soft delete, and batch operate on license keys.
+- Disable, enable, or soft delete individual keys or batches; bulk operations report both requested and updated counts.
+- Deleted state takes precedence over disabled, expired, and active display states, keeping the lifecycle explicit and irreversible.
 
 ### Activation, Verification, and Device Transfer
 
@@ -47,20 +67,22 @@ These credentials are public and intended only for the online demo. Do not reuse
 - One license key is bound to one device by default, and verification requires a matching device fingerprint.
 - Re-activating the same license key on the same device returns the current license information.
 - Supports up to 3 self-service unbind transfers, with at least 24 hours between valid unbinds.
-- Admins can manually unbind eligible activated licenses in the admin console.
+- Unbinding releases only the device relationship and never recalculates activation or expiration; the new device rebinds through the activation endpoint.
+- Admins can manually unbind eligible activated licenses without consuming the user's self-service transfer allowance.
 
-### Admin Console
+### Operations, Audit, and Developer Support
 
-- Admin login, session authentication, and password change.
-- Application list, application creation, enable/disable/delete, and secret reset.
-- License key generation, list filtering, license details, and batch operations.
-- Operation log search for tracing important admin actions.
+- The dashboard shows application and license totals, activation rate, status and plan distributions, 7-day license trends, application ranking, and client failure counts.
+- Operation logs can be searched by application, action, result, and keyword, covering important admin actions plus activation, verification, and unbind outcomes once a license key is identified.
+- Integration docs include client API references, workflow diagrams, TypeScript/JavaScript SDKs, cURL examples, and an HTML demo.
+- The SDK page provides React, Vue, React Native, Angular, Svelte, Electron, Flutter/Dart, and TypeScript Core samples.
+- The Playground previews requests and calls the real client APIs for activation, verification, and unbind testing.
 
 ### Security and Audit
 
 - `/api/admin/*` endpoints require Bearer Token authentication except login.
 - Client APIs validate both `app_id` and `app_secret`.
-- License keys, application secrets, and device fingerprints are stored as HMAC hashes.
+- License keys, application secrets, and device fingerprints are stored using separate HMAC secrets.
 - APIs use a unified response shape and do not expose SQL errors, raw exceptions, or secret-related details.
 - License key deletion is soft deletion, preserving auditability and historical records.
 
