@@ -6,6 +6,15 @@
 
 项目基于 Cloudflare Workers + D1 构建后端和数据库，使用 Hono 提供 API，管理后台由 React + Vite + Ant Design Pro 实现。Worker 同时托管后端接口和管理后台静态资源，适合以较低运维成本部署到 Cloudflare 边缘网络。
 
+## 在线演示
+
+- 地址：[https://license.udook.com](https://license.udook.com)
+- 租户：`test`
+- 用户名：`test`
+- 密码：`test123456`
+
+以上账号仅用于公开演示，请勿在其他场景复用该密码；演示数据可能会定期重置。
+
 ## 适用场景
 
 - 为一个或多个应用发放激活码。

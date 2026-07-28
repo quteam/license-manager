@@ -6,6 +6,15 @@ A lightweight, self-hostable license key management system for independent softw
 
 The backend and database run on Cloudflare Workers and D1. APIs are built with Hono, and the admin console is built with React, Vite, and Ant Design Pro. The Worker serves both the backend API and the admin static assets, so the system can be deployed to the Cloudflare edge with low operational overhead.
 
+## Online Demo
+
+- URL: [https://license.udook.com](https://license.udook.com)
+- Tenant: `test`
+- Username: `test`
+- Password: `test123456`
+
+These credentials are public and intended only for the online demo. Do not reuse the password elsewhere; demo data may be reset periodically.
+
 ## Use Cases
 
 - Issue license keys for one or more applications.
