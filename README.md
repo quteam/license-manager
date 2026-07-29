@@ -9,7 +9,7 @@ The backend and database run on Cloudflare Workers and D1. APIs are built with H
 ## Online Demo
 
 - URL: [https://license.udook.com](https://license.udook.com)
-- Tenant: `test`
+- Tenant: `demo`
 - Username: `test`
 - Password: `test123456`
 

@@ -198,6 +198,23 @@ describe("LicenseService admin password reset", () => {
       code: "FORBIDDEN"
     });
   });
+
+  it("refuses password changes for the read-only test administrator", async () => {
+    repo.admin.username = "test";
+    const previousHash = repo.admin.password_hash;
+    const previousSalt = repo.admin.password_salt;
+
+    await expect(
+      service.changeAdminPassword({
+        adminId: repo.admin.id,
+        currentPassword: "old-admin-password",
+        newPassword: "new-admin-password"
+      })
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+
+    expect(repo.admin.password_hash).toBe(previousHash);
+    expect(repo.admin.password_salt).toBe(previousSalt);
+  });
 });
 
 type LogInput = {

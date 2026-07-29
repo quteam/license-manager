@@ -9,7 +9,7 @@
 ## 在线演示
 
 - 地址：[https://license.udook.com](https://license.udook.com)
-- 租户：`test`
+- 租户：`demo`
 - 用户名：`test`
 - 密码：`test123456`
 

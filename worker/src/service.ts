@@ -19,6 +19,7 @@ import { ApiError, AppRow, Bindings, CodeDetailRow } from "./types";
 
 export const MAX_REBINDS = 3;
 export const REBIND_COOLDOWN_MS = 24 * 60 * 60 * 1000;
+const READ_ONLY_ADMIN_USERNAME = "test";
 
 export class LicenseService {
   constructor(
@@ -159,6 +160,9 @@ export class LicenseService {
     const admin = await this.repo.getAdminCredentialsById(input.adminId);
     if (!admin) {
       throw new ApiError(404, "NOT_FOUND", "Admin not found");
+    }
+    if (admin.username === READ_ONLY_ADMIN_USERNAME) {
+      throw new ApiError(403, "FORBIDDEN", "Password changes are disabled for this account");
     }
     const valid = await verifyPassword(input.currentPassword, admin.password_salt, admin.password_hash);
     if (!valid) {
