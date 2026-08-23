@@ -112,8 +112,9 @@
 | `GET /api/admin/codes` | 激活码列表 | 只读分页 |
 | `PATCH /api/admin/codes/:id/status` | 启用/禁用激活码 | 写激活码和日志 |
 | `PATCH /api/admin/codes/:id/unbind-device` | 管理员手动解绑 | 写激活码和日志 |
-| `POST /api/admin/codes/bulk` | 批量删除/启用/禁用 | 写激活码和日志 |
+| `POST /api/admin/codes/bulk` | 批量删除/启用/禁用/强制删除 | 写激活码和日志 |
 | `DELETE /api/admin/codes/:id` | 软删除激活码 | 写激活码和日志 |
+| `DELETE /api/admin/codes/:id/force` | 强制删除激活码（物理删除） | 写日志，断开日志关联 |
 | `GET /api/admin/logs` | 操作日志 | 只读分页 |
 | `POST /api/client/app-info` | 获取应用公开信息 | 只读 |
 | `POST /api/client/activate` | 首次激活或重绑 | 可能写激活码和日志 |
@@ -436,6 +437,12 @@
 
 删除为软删除。
 
+### 强制删除激活码
+
+`DELETE /api/admin/codes/:id/force`
+
+从数据库中**彻底删除**该激活码（物理删除），不可恢复。删除时该激活码关联的操作日志会断开（`code_id` 置空），并新增一条 `force_delete_code` 操作日志。此操作不可撤销，调用方必须二次确认。
+
 ### 手动解绑设备
 
 `PATCH /api/admin/codes/:id/unbind-device`
@@ -456,6 +463,7 @@
 `action` 支持：
 
 - `delete`：批量软删除。
+- `force_delete`：批量强制删除（物理删除，不可恢复；调用方必须二次确认）。
 - `disable`：批量禁用。
 - `enable`：批量启用。
 

@@ -56,13 +56,15 @@ export type CodeToggleStatus = (typeof CODE_TOGGLE_STATUS_VALUES)[number];
 export const CODE_BULK_ACTION = {
   DELETE: "delete",
   ENABLE: "enable",
-  DISABLE: "disable"
+  DISABLE: "disable",
+  FORCE_DELETE: "force_delete"
 } as const;
 
 export const CODE_BULK_ACTION_VALUES = [
   CODE_BULK_ACTION.DELETE,
   CODE_BULK_ACTION.ENABLE,
-  CODE_BULK_ACTION.DISABLE
+  CODE_BULK_ACTION.DISABLE,
+  CODE_BULK_ACTION.FORCE_DELETE
 ] as const;
 export type CodeBulkAction = (typeof CODE_BULK_ACTION_VALUES)[number];
 
@@ -75,6 +77,7 @@ export const LOG_ACTION = {
   DELETE_CODE: "delete_code",
   DISABLE_CODE: "disable_code",
   ENABLE_CODE: "enable_code",
+  FORCE_DELETE_CODE: "force_delete_code",
   DISABLE_APP: "disable_app",
   ENABLE_APP: "enable_app",
   ROTATE_APP_SECRET: "rotate_app_secret",
@@ -94,6 +97,7 @@ export const LOG_ACTION_VALUES = [
   LOG_ACTION.DELETE_CODE,
   LOG_ACTION.DISABLE_CODE,
   LOG_ACTION.ENABLE_CODE,
+  LOG_ACTION.FORCE_DELETE_CODE,
   LOG_ACTION.DISABLE_APP,
   LOG_ACTION.ENABLE_APP,
   LOG_ACTION.ROTATE_APP_SECRET,

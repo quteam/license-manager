@@ -226,7 +226,14 @@ export const dictionaries = {
       selectFirst: "请先选择激活码",
       bulkTitle: "批量{action}激活码",
       bulkConfirm: "确认{action}选中的 {count} 个激活码？",
-      bulkSucceeded: "已{action} {count} 个激活码"
+      bulkSucceeded: "已{action} {count} 个激活码",
+      forceDelete: "强制删除",
+      forceDeleteConfirm: "强制删除激活码 {suffix}？将从数据库彻底移除，不可恢复。",
+      forceDeleteConfirmFinal: "再次确认",
+      forceDeleteConfirmFinalContent: "最终确认：该激活码将被永久彻底删除，相关日志关联将断开，无法恢复。确定执行？",
+      bulkForceDelete: "批量强制删除",
+      bulkForceDeleteConfirm: "确定强制删除选中的 {count} 个激活码？将从数据库彻底移除，不可恢复。",
+      forceDeleteSucceeded: "已强制删除"
     },
     generate: {
       params: "生成参数",
@@ -250,6 +257,7 @@ export const dictionaries = {
       deleteCode: "删除激活码",
       disableCode: "禁用激活码",
       enableCode: "启用激活码",
+      forceDeleteCode: "强制删除激活码",
       disableApp: "禁用应用",
       enableApp: "启用应用",
       rotateAppSecret: "更换应用密钥",
@@ -672,6 +680,7 @@ export const dictionaries = {
       deleteConfirm: "Delete activation code with suffix {suffix}?",
       disableCode: "Disable Code",
       enableCode: "Enable Code",
+      forceDeleteCode: "Force Delete Code",
       disableConfirm: "After disabling code suffix {suffix}, client activation, verification, and unbind will fail.",
       enableConfirm: "Enable activation code with suffix {suffix}?",
       selected: "{count} selected",
@@ -682,7 +691,14 @@ export const dictionaries = {
       selectFirst: "Select activation codes first",
       bulkTitle: "Bulk {action} Codes",
       bulkConfirm: "{action} {count} selected activation codes?",
-      bulkSucceeded: "{action}d {count} activation codes"
+      bulkSucceeded: "{action}d {count} activation codes",
+      forceDelete: "Force Delete",
+      forceDeleteConfirm: "Force delete activation code {suffix}? It will be permanently removed from the database and cannot be recovered.",
+      forceDeleteConfirmFinal: "Final Confirmation",
+      forceDeleteConfirmFinalContent: "Final confirmation: this activation code will be permanently deleted and its log association will be removed. This cannot be undone. Continue?",
+      bulkForceDelete: "Bulk Force Delete",
+      bulkForceDeleteConfirm: "Force delete {count} selected activation codes? They will be permanently removed from the database and cannot be recovered.",
+      forceDeleteSucceeded: "Force deleted"
     },
     generate: {
       params: "Generation Parameters",

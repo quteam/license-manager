@@ -471,6 +471,33 @@ export class Repository {
     return result.meta.changes === 1;
   }
 
+  async getCodeById(codeId: number, tenantId: number): Promise<CodeDetailRow | null> {
+    return await this.db
+      .prepare(
+        `SELECT c.*, a.app_id AS app_public_id, a.name AS app_name, a.platform AS app_platform, a.status AS app_status,
+                p.code AS plan_code, p.name AS plan_name, p.duration_days
+         FROM activation_codes c
+         JOIN apps a ON a.id = c.app_id
+         JOIN plans p ON p.id = c.plan_id
+         WHERE c.id = ? AND a.tenant_id = ?`
+      )
+      .bind(codeId, tenantId)
+      .first<CodeDetailRow>();
+  }
+
+  async hardDeleteCode(codeId: number, tenantId: number): Promise<boolean> {
+    const result = await this.db.batch([
+      this.db.prepare("UPDATE activation_logs SET code_id = NULL WHERE code_id = ?").bind(codeId),
+      this.db
+        .prepare(
+          "DELETE FROM activation_codes WHERE id = ? AND app_id IN (SELECT id FROM apps WHERE tenant_id = ?)"
+        )
+        .bind(codeId, tenantId)
+    ]);
+    const last = result[result.length - 1] as { meta: { changes: number } } | undefined;
+    return last?.meta.changes === 1;
+  }
+
   async updateCodeDisabled(input: { codeId: number; tenantId: number; disabled: boolean; changedAt: string }): Promise<boolean> {
     const disabledAt = input.disabled ? input.changedAt : null;
     const result = await this.db

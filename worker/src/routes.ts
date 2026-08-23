@@ -400,6 +400,14 @@ export function createApi() {
     return c.json(ok({ deleted: true }));
   });
 
+  api.delete("/admin/codes/:id/force", async (c) => {
+    const id = requireInteger(c.req.param("id"), "id", { min: 1 });
+    const repo = new Repository(c.env.DB);
+    const service = new LicenseService(repo, c.env);
+    const result = await service.forceDeleteCode(id, c.get("admin").id, await resolveTenantId(c));
+    return c.json(ok(result));
+  });
+
   api.get("/admin/logs", async (c) => {
     const repo = new Repository(c.env.DB);
     const page = requireInteger(c.req.query("page") ?? 1, "page", { min: 1 });

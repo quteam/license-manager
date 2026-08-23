@@ -1,4 +1,4 @@
-import { DisconnectOutlined, CheckCircleOutlined, CloseOutlined, DeleteOutlined, StopOutlined } from "@ant-design/icons";
+import { DisconnectOutlined, CheckCircleOutlined, CloseOutlined, DeleteOutlined, StopOutlined, WarningOutlined } from "@ant-design/icons";
 import type { ActionType, ProColumns } from "@ant-design/pro-components";
 import { ProTable } from "@ant-design/pro-components";
 import { App as AntApp, Button, Space, Tag, Typography } from "antd";
@@ -190,6 +190,16 @@ export function CodesPage() {
           >
             {t("common.delete")}
           </Button>
+          <Button
+            danger
+            size="small"
+            type="link"
+            icon={<WarningOutlined />}
+            aria-label={t("codes.forceDelete")}
+            onClick={() => confirmForceDeleteCode(row)}
+          >
+            {t("codes.forceDelete")}
+          </Button>
         </Space>
       )
     }
@@ -242,6 +252,15 @@ export function CodesPage() {
           >
             {t("codes.bulkDelete")}
           </Button>
+          <Button
+            danger
+            size="small"
+            icon={<WarningOutlined />}
+            disabled={selectedCount === 0}
+            onClick={() => bulkUpdateCodes(CODE_BULK_ACTION.FORCE_DELETE, selectedRowKeys)}
+          >
+            {t("codes.bulkForceDelete")}
+          </Button>
           <Button size="small" icon={<CloseOutlined />} disabled={selectedCount === 0} onClick={() => setSelectedRowKeys([])}>
             {t("codes.clearSelection")}
           </Button>
@@ -273,32 +292,77 @@ export function CodesPage() {
       message.warning(t("codes.selectFirst"));
       return;
     }
-    const actionText =
-      action === CODE_BULK_ACTION.DELETE ? t("common.delete") : action === CODE_BULK_ACTION.DISABLE ? t("common.disable") : t("common.enable");
+    const actionText = getBulkActionText(action);
+    const isForceDelete = action === CODE_BULK_ACTION.FORCE_DELETE;
+    const doConfirm = (final: boolean) => {
+      modal.confirm({
+        title: final ? t("codes.forceDeleteConfirmFinal") : t("codes.bulkTitle", { action: actionText }),
+        content: final
+          ? t("codes.forceDeleteConfirmFinalContent")
+          : isForceDelete
+            ? t("codes.bulkForceDeleteConfirm", { count: keys.length })
+            : t("codes.bulkConfirm", { action: actionText, count: keys.length }),
+        okText: actionText,
+        okButtonProps:
+          isForceDelete || action === CODE_BULK_ACTION.DELETE
+            ? { danger: true }
+            : action === CODE_BULK_ACTION.DISABLE
+              ? { style: DISABLE_CONFIRM_BUTTON_STYLE }
+              : undefined,
+        cancelText: t("common.cancel"),
+        onOk: async () => {
+          if (isForceDelete && !final) {
+            doConfirm(true);
+            return;
+          }
+          const result = await apiRequest<{ action: string; requested: number; updated: number }>("/api/admin/codes/bulk", {
+            method: "POST",
+            body: JSON.stringify({
+              action,
+              ids: keys.map((key) => Number(key))
+            })
+          });
+          message.success(t("codes.bulkSucceeded", { action: actionText, count: result.updated }));
+          setSelectedRowKeys([]);
+          actionRef.current?.reload();
+        }
+      });
+    };
+    doConfirm(false);
+  }
+
+  function confirmForceDeleteCode(row: CodeItem) {
     modal.confirm({
-      title: t("codes.bulkTitle", { action: actionText }),
-      content: t("codes.bulkConfirm", { action: actionText, count: keys.length }),
-      okText: actionText,
-      okButtonProps:
-        action === CODE_BULK_ACTION.DELETE
-          ? { danger: true }
-          : action === CODE_BULK_ACTION.DISABLE
-            ? { style: DISABLE_CONFIRM_BUTTON_STYLE }
-            : undefined,
+      title: t("codes.forceDelete"),
+      content: t("codes.forceDeleteConfirm", { suffix: row.code_suffix }),
+      okText: t("codes.forceDelete"),
+      okButtonProps: { danger: true },
       cancelText: t("common.cancel"),
-      onOk: async () => {
-        const result = await apiRequest<{ action: string; requested: number; updated: number }>("/api/admin/codes/bulk", {
-          method: "POST",
-          body: JSON.stringify({
-            action,
-            ids: keys.map((key) => Number(key))
-          })
+      onOk: () => {
+        modal.confirm({
+          title: t("codes.forceDeleteConfirmFinal"),
+          content: t("codes.forceDeleteConfirmFinalContent"),
+          okText: t("codes.forceDelete"),
+          okButtonProps: { danger: true },
+          cancelText: t("common.cancel"),
+          onOk: async () => {
+            await apiRequest(`/api/admin/codes/${row.id}/force`, { method: "DELETE" });
+            message.success(t("codes.forceDeleteSucceeded"));
+            actionRef.current?.reload();
+          }
         });
-        message.success(t("codes.bulkSucceeded", { action: actionText, count: result.updated }));
-        setSelectedRowKeys([]);
-        actionRef.current?.reload();
       }
     });
+  }
+
+  function getBulkActionText(action: CodeBulkAction) {
+    return action === CODE_BULK_ACTION.FORCE_DELETE
+      ? t("codes.forceDelete")
+      : action === CODE_BULK_ACTION.DELETE
+        ? t("common.delete")
+        : action === CODE_BULK_ACTION.DISABLE
+          ? t("common.disable")
+          : t("common.enable");
   }
 }
 

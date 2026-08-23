@@ -716,6 +716,26 @@ export class LicenseService {
     });
   }
 
+  async forceDeleteCode(codeId: number, adminId: number, tenantId: number) {
+    const code = await this.repo.getCodeById(codeId, tenantId);
+    if (!code) {
+      throw new ApiError(404, "NOT_FOUND", "Activation code not found");
+    }
+    const deleted = await this.repo.hardDeleteCode(codeId, tenantId);
+    if (!deleted) {
+      throw new ApiError(404, "NOT_FOUND", "Activation code not found");
+    }
+    await this.repo.insertLog({
+      appDbId: code.app_id,
+      action: LOG_ACTION.FORCE_DELETE_CODE,
+      result: LOG_RESULT.SUCCESS,
+      message: `强制删除激活码，管理员 ID：${adminId}`
+    });
+    return {
+      deleted: true
+    };
+  }
+
   async updateCodeDisabled(input: { codeId: number; tenantId: number; disabled: boolean; adminId: number }) {
     const changedAt = nowIso();
     const updated = await this.repo.updateCodeDisabled({
@@ -761,6 +781,24 @@ export class LicenseService {
   async bulkUpdateCodes(input: { codeIds: number[]; tenantId: number; action: CodeBulkAction; adminId: number }) {
     let updated = 0;
     for (const codeId of input.codeIds) {
+      if (input.action === CODE_BULK_ACTION.FORCE_DELETE) {
+        const code = await this.repo.getCodeById(codeId, input.tenantId);
+        if (!code) {
+          continue;
+        }
+        const changed = await this.repo.hardDeleteCode(codeId, input.tenantId);
+        if (!changed) {
+          continue;
+        }
+        updated += 1;
+        await this.repo.insertLog({
+          appDbId: code.app_id,
+          action: LOG_ACTION.FORCE_DELETE_CODE,
+          result: LOG_RESULT.SUCCESS,
+          message: `强制删除激活码，管理员 ID：${input.adminId}`
+        });
+        continue;
+      }
       const changed = await this.updateCodeByBulkAction(codeId, input.action, input.tenantId);
       if (!changed) {
         continue;
