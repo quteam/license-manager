@@ -64,7 +64,7 @@ export const dictionaries = {
       generate: "生成激活码",
       logs: "操作日志",
       docs: "接入文档",
-      integrationPrompt: "接入提示词",
+      integrationPrompt: "接入提示词与API文档",
       sdk: "SDK",
       playground: "Playground",
       license: "授权管理",
@@ -444,7 +444,7 @@ export const dictionaries = {
       forcedHelp: "勾选后客户端将收到强制更新标志"
     },
     prompt: {
-      title: "接入提示词",
+      title: "接入提示词与API文档",
       description: "把这份提示词连同你的项目源码一起交给 AI 编码助手，即可完成卡密接入（激活、校验、解绑、购买引导、版本更新）。",
       intro: "用法说明",
       introSteps: "① 点击「复制提示词」或「下载提示词」，得到完整的接入任务说明；② 将提示词连同你的项目源码交给 AI 编码助手执行；③ 需要接口细节时，参考 API.md 与 API_VERSIONS.md。",
@@ -520,7 +520,7 @@ export const dictionaries = {
       generate: "Generate Codes",
       logs: "Operation Logs",
       docs: "Integration Docs",
-      integrationPrompt: "Integration Prompt",
+      integrationPrompt: "Integration Prompt & API Docs",
       sdk: "SDK",
       playground: "Playground",
       license: "License",
@@ -900,7 +900,7 @@ export const dictionaries = {
       forcedHelp: "When enabled, clients receive the forced-update flag"
     },
     prompt: {
-      title: "Integration Prompt",
+      title: "Integration Prompt & API Docs",
       description: "Hand this prompt together with your project source code to an AI coding assistant to complete the license integration (activation, verification, unbind, purchase guidance, and version updates).",
       intro: "How to Use",
       introSteps: "① Click \"Copy Prompt\" or \"Download Prompt\" to get the complete integration task; ② Hand the prompt and your project source code to an AI coding assistant; ③ Refer to API.md and API_VERSIONS.md for interface details.",
