@@ -57,8 +57,17 @@ pnpm wrangler secret put JWT_SECRET --config wrangler.production.toml --env prod
 pnpm wrangler secret put CODE_HMAC_SECRET --config wrangler.production.toml --env production
 pnpm wrangler secret put APP_SECRET_HMAC_SECRET --config wrangler.production.toml --env production
 pnpm wrangler secret put DEVICE_HMAC_SECRET --config wrangler.production.toml --env production
+pnpm wrangler secret put CODE_PLAINTEXT_ENCRYPTION_KEY --config wrangler.production.toml --env production
 pnpm wrangler secret put ADMIN_BOOTSTRAP_PASSWORD --config wrangler.production.toml --env production
 ```
+
+`CODE_PLAINTEXT_ENCRYPTION_KEY` 用于加密激活码明文（分销商取码功能），必须是 **base64url 编码的 32 字节密钥**（AES-256-GCM）。生成方式：
+
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"
+```
+
+未配置该密钥时：生成激活码不会写入明文，分销取码接口返回 `ENCRYPTION_KEY_NOT_CONFIGURED`，普通激活/校验不受影响。密钥轮换会使已加密明文无法解密，如非必要不要更换。
 
 生产环境还应确认：
 
