@@ -142,6 +142,7 @@ export const dictionaries = {
       cli: "命令行"
     },
     planDuration: {
+      lifetime: "激活后长期有效",
       monthly: "激活后 1 个自然月",
       quarterly: "激活后 3 个自然月",
       yearly: "激活后 1 个自然年",
@@ -534,6 +535,7 @@ export const dictionaries = {
       cli: "CLI"
     },
     planDuration: {
+      lifetime: "Valid forever after activation",
       monthly: "1 calendar month after activation",
       quarterly: "3 calendar months after activation",
       yearly: "1 calendar year after activation",

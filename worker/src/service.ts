@@ -705,6 +705,8 @@ export class LicenseService {
 
   private calculateExpiresAt(activatedAt: string, code: CodeDetailRow): string {
     switch (code.plan_code) {
+      case "lifetime":
+        return "2099-12-31T23:59:59.000Z";
       case "monthly":
         return addMonthsIso(activatedAt, 1);
       case "quarterly":
