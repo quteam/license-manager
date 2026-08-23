@@ -29,6 +29,7 @@ export function CodesPage() {
   const { t } = useI18n();
   const { apps, plans } = useCatalogs();
   const actionRef = useRef<ActionType | undefined>(undefined);
+  const dataRef = useRef<CodeItem[]>([]);
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
   const selectedCount = selectedRowKeys.length;
 
@@ -215,7 +216,6 @@ export function CodesPage() {
       scroll={{ x: 1620 }}
       rowSelection={{
         selectedRowKeys,
-        getCheckboxProps: (row) => ({ disabled: row.status === CODE_STATUS.DELETED }),
         onChange: (keys) => setSelectedRowKeys(keys)
       }}
       search={{ labelWidth: 72, defaultCollapsed: false }}
@@ -278,6 +278,7 @@ export function CodesPage() {
               page_size: params.pageSize
             })}`
           );
+          dataRef.current = data.items;
           return { data: data.items, total: data.total, success: true };
         } catch (error) {
           message.error(error instanceof Error ? error.message : t("common.loadingFailed"));
@@ -294,14 +295,27 @@ export function CodesPage() {
     }
     const actionText = getBulkActionText(action);
     const isForceDelete = action === CODE_BULK_ACTION.FORCE_DELETE;
+    let effectiveKeys = keys;
+    if (!isForceDelete) {
+      const selectedRows = dataRef.current.filter((row) => keys.includes(row.id));
+      const nonDeleted = selectedRows.filter((row) => row.status !== CODE_STATUS.DELETED);
+      if (selectedRows.length > 0 && nonDeleted.length === 0) {
+        message.warning(t("codes.forceDeleteHint"));
+        return;
+      }
+      if (nonDeleted.length < keys.length) {
+        message.info(t("codes.skippedDeletedHint", { count: keys.length - nonDeleted.length }));
+      }
+      effectiveKeys = nonDeleted.map((row) => row.id);
+    }
     const doConfirm = (final: boolean) => {
       modal.confirm({
         title: final ? t("codes.forceDeleteConfirmFinal") : t("codes.bulkTitle", { action: actionText }),
         content: final
           ? t("codes.forceDeleteConfirmFinalContent")
           : isForceDelete
-            ? t("codes.bulkForceDeleteConfirm", { count: keys.length })
-            : t("codes.bulkConfirm", { action: actionText, count: keys.length }),
+            ? t("codes.bulkForceDeleteConfirm", { count: effectiveKeys.length })
+            : t("codes.bulkConfirm", { action: actionText, count: effectiveKeys.length }),
         okText: actionText,
         okButtonProps:
           isForceDelete || action === CODE_BULK_ACTION.DELETE
@@ -319,7 +333,7 @@ export function CodesPage() {
             method: "POST",
             body: JSON.stringify({
               action,
-              ids: keys.map((key) => Number(key))
+              ids: effectiveKeys.map((key) => Number(key))
             })
           });
           message.success(t("codes.bulkSucceeded", { action: actionText, count: result.updated }));

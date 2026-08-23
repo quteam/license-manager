@@ -233,7 +233,9 @@ export const dictionaries = {
       forceDeleteConfirmFinalContent: "最终确认：该激活码将被永久彻底删除，相关日志关联将断开，无法恢复。确定执行？",
       bulkForceDelete: "批量强制删除",
       bulkForceDeleteConfirm: "确定强制删除选中的 {count} 个激活码？将从数据库彻底移除，不可恢复。",
-      forceDeleteSucceeded: "已强制删除"
+      forceDeleteSucceeded: "已强制删除",
+      forceDeleteHint: "选中项均为已删除状态，请使用「批量强制删除」",
+      skippedDeletedHint: "已跳过 {count} 个已删除状态的激活码（批量启用/禁用/删除仅对未删除激活码生效）"
     },
     generate: {
       params: "生成参数",
@@ -698,7 +700,9 @@ export const dictionaries = {
       forceDeleteConfirmFinalContent: "Final confirmation: this activation code will be permanently deleted and its log association will be removed. This cannot be undone. Continue?",
       bulkForceDelete: "Bulk Force Delete",
       bulkForceDeleteConfirm: "Force delete {count} selected activation codes? They will be permanently removed from the database and cannot be recovered.",
-      forceDeleteSucceeded: "Force deleted"
+      forceDeleteSucceeded: "Force deleted",
+      forceDeleteHint: "All selected codes are already deleted. Use \"Bulk Force Delete\" instead.",
+      skippedDeletedHint: "Skipped {count} deleted activation code(s). Bulk enable/disable/delete only applies to non-deleted codes."
     },
     generate: {
       params: "Generation Parameters",
