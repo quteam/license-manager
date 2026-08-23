@@ -21,6 +21,7 @@
 | `FRONTEND.md` | 页面结构、路由、组件、UI、i18n 和前端安全 | Worker 业务实现 |
 | `DEVELOPMENT.md` | 环境、命令、测试策略和开发闭环 | 生产发布操作 |
 | `DEPLOYMENT.md` | Cloudflare、D1、Wrangler secret 和发布检查 | 日常编码规范 |
+| `INTEGRATION_PROMPT.md` | 客户端软件接入本授权系统的任务提示词（激活、校验、解绑、设备指纹、购买引导） | 具体接口契约和页面布局 |
 
 根目录通用文档：
 
