@@ -42,6 +42,9 @@
 
 ## 使用教程
 
+> [!TIP]
+> **想让 AI 直接帮你接入卡密系统？** 把接入提示词 [docs/INTEGRATION_PROMPT.md](docs/INTEGRATION_PROMPT.md) 连同你的项目源码一起交给 AI 编码助手，按提示词即可完成激活、校验、解绑、购买引导等全部接入工作，无需手动逐接口对接。
+
 ### 一、管理后台使用
 
 #### 1. 登录后台
@@ -317,6 +320,9 @@ The backend and database run on Cloudflare Workers and D1, the API is built with
 | Testing | Vitest |
 
 ## Usage Guide
+
+> [!TIP]
+> **Want an AI to integrate the licensing system for you?** Hand the integration prompt [docs/INTEGRATION_PROMPT.md](docs/INTEGRATION_PROMPT.md) together with your project source code to an AI coding assistant — it will implement activation, verification, unbind/transfer, and purchase guidance without manual per-API work.
 
 ### 1. Admin Console
 
