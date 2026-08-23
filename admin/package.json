@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
-    "build": "tsc -p tsconfig.json && vite build",
+    "build": "tsc -p tsconfig.json && vite build && xcopy /E /I /Y ..\\docs dist\\docs",
     "type-check": "tsc -p tsconfig.json",
     "preview": "vite preview --host 0.0.0.0"
   },

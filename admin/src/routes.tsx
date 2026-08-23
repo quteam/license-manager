@@ -6,6 +6,7 @@ import {
   FileTextOutlined,
   KeyOutlined,
   PlayCircleOutlined,
+  RobotOutlined,
   SignatureOutlined,
   TagsOutlined,
   TeamOutlined
@@ -23,8 +24,9 @@ const SdkPage = lazy(() => import("./pages/SdkPage").then((module) => ({ default
 const PlaygroundPage = lazy(() => import("./pages/PlaygroundPage").then((module) => ({ default: module.PlaygroundPage })));
 const TenantsPage = lazy(() => import("./pages/TenantsPage").then((module) => ({ default: module.TenantsPage })));
 const VersionsPage = lazy(() => import("./pages/VersionsPage").then((module) => ({ default: module.VersionsPage })));
+const IntegrationPromptPage = lazy(() => import("./pages/IntegrationPromptPage").then((module) => ({ default: module.IntegrationPromptPage })));
 
-export type PageKey = "dashboard" | "tenants" | "apps" | "codes" | "generate" | "logs" | "docs" | "sdk" | "playground" | "versions";
+export type PageKey = "dashboard" | "tenants" | "apps" | "codes" | "generate" | "logs" | "docs" | "sdk" | "playground" | "versions" | "integration-prompt";
 
 type AdminRoute = MenuDataItem & {
   key: PageKey;
@@ -96,6 +98,13 @@ export function getAdminPageRoutes(t: Translate): AdminRoute[] {
     element: <DocsPage />
   },
   {
+    key: "integration-prompt",
+    path: "/integration-prompt",
+    name: t("nav.integrationPrompt"),
+    icon: <RobotOutlined />,
+    element: <IntegrationPromptPage />
+  },
+  {
     key: "sdk",
     path: "/sdk",
     name: t("nav.sdk"),
@@ -121,6 +130,7 @@ const routePaths: Array<[string, PageKey]> = [
   ["/generate", "generate"],
   ["/logs", "logs"],
   ["/docs", "docs"],
+  ["/integration-prompt", "integration-prompt"],
   ["/sdk", "sdk"],
   ["/playground", "playground"]
 ];
@@ -155,7 +165,7 @@ export function getMenuRoutes(routes: AdminRoute[], t: Translate, isSuperAdmin: 
       key: "support",
       path: "/support",
       name: t("nav.support"),
-      children: [menuRouteMap.docs, menuRouteMap.sdk, menuRouteMap.playground]
+      children: [menuRouteMap["integration-prompt"], menuRouteMap.docs, menuRouteMap.sdk, menuRouteMap.playground]
     },
     ...(isSuperAdmin ? [{
       key: "system",
