@@ -275,7 +275,11 @@ export class Repository {
       return false;
     }
     const result = await this.db.batch([
-      this.db.prepare("DELETE FROM activation_logs WHERE app_id = ?").bind(appDbId),
+      this.db
+        .prepare(
+          "DELETE FROM activation_logs WHERE app_id = ? OR code_id IN (SELECT id FROM activation_codes WHERE app_id = ?)"
+        )
+        .bind(appDbId, appDbId),
       this.db.prepare("DELETE FROM activation_codes WHERE app_id = ?").bind(appDbId),
       this.db.prepare("DELETE FROM activation_batches WHERE app_id = ?").bind(appDbId),
       this.db.prepare("DELETE FROM versions WHERE app_id = ?").bind(appDbId),
