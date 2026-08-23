@@ -10,7 +10,8 @@ import {
   isCodeBulkAction,
   isCodeListStatus,
   isCodeToggleStatus,
-  isTenantStatus
+  isTenantStatus,
+  isVersionStatus
 } from "./constants";
 import { signJwt } from "./crypto";
 import { ok, optionalHttpUrl, optionalString, readJson, requireInteger, requireString } from "./http";
@@ -212,6 +213,97 @@ export function createApi() {
     return c.json(ok(result));
   });
 
+  api.get("/admin/versions", async (c) => {
+    const repo = new Repository(c.env.DB);
+    const service = new LicenseService(repo, c.env);
+    const page = requireInteger(c.req.query("page") ?? 1, "page", { min: 1 });
+    const pageSize = requireInteger(c.req.query("page_size") ?? 20, "page_size", { min: 1, max: 100 });
+    const status = c.req.query("status");
+    const normalizedStatus = status && isVersionStatus(status) ? status : undefined;
+    if (status && !normalizedStatus) {
+      throw new ApiError(400, "BAD_REQUEST", "Invalid status filter");
+    }
+    const result = await service.listVersions({
+      tenantId: await resolveTenantId(c),
+      appId: c.req.query("app_id") || undefined,
+      status: normalizedStatus,
+      page,
+      pageSize
+    });
+    return c.json(ok(result));
+  });
+
+  api.post("/admin/versions", async (c) => {
+    const body = await readJson(c.req.raw);
+    const service = new LicenseService(new Repository(c.env.DB), c.env);
+    const result = await service.createVersion({
+      tenantId: await resolveTenantId(c),
+      appId: requireString(body.app_id, "app_id"),
+      version: requireString(body.version, "version"),
+      versionCode: requireInteger(body.version_code, "version_code", { min: 1 }),
+      releaseNotes: optionalString(body.release_notes) ?? "",
+      downloadUrl: optionalHttpUrl(body.download_url, "download_url"),
+      isForced: body.is_forced === true,
+      adminId: c.get("admin").id
+    });
+    return c.json(ok(result), 201);
+  });
+
+  api.patch("/admin/versions/:id", async (c) => {
+    const body = await readJson(c.req.raw);
+    const service = new LicenseService(new Repository(c.env.DB), c.env);
+    const versionCode =
+      body.version_code === undefined || body.version_code === null
+        ? undefined
+        : requireInteger(body.version_code, "version_code", { min: 1 });
+    const downloadUrl =
+      body.download_url === undefined || body.download_url === null
+        ? undefined
+        : optionalHttpUrl(body.download_url, "download_url");
+    const isForced = body.is_forced === undefined ? undefined : body.is_forced === true;
+    const result = await service.updateVersion({
+      tenantId: await resolveTenantId(c),
+      versionId: requireInteger(c.req.param("id"), "id", { min: 1 }),
+      version: optionalString(body.version),
+      versionCode,
+      releaseNotes: optionalString(body.release_notes),
+      downloadUrl,
+      isForced,
+      adminId: c.get("admin").id
+    });
+    return c.json(ok(result));
+  });
+
+  api.post("/admin/versions/:id/publish", async (c) => {
+    const service = new LicenseService(new Repository(c.env.DB), c.env);
+    const result = await service.publishVersion({
+      tenantId: await resolveTenantId(c),
+      versionId: requireInteger(c.req.param("id"), "id", { min: 1 }),
+      adminId: c.get("admin").id
+    });
+    return c.json(ok(result));
+  });
+
+  api.post("/admin/versions/:id/unpublish", async (c) => {
+    const service = new LicenseService(new Repository(c.env.DB), c.env);
+    const result = await service.unpublishVersion({
+      tenantId: await resolveTenantId(c),
+      versionId: requireInteger(c.req.param("id"), "id", { min: 1 }),
+      adminId: c.get("admin").id
+    });
+    return c.json(ok(result));
+  });
+
+  api.delete("/admin/versions/:id", async (c) => {
+    const service = new LicenseService(new Repository(c.env.DB), c.env);
+    const result = await service.deleteVersion({
+      tenantId: await resolveTenantId(c),
+      versionId: requireInteger(c.req.param("id"), "id", { min: 1 }),
+      adminId: c.get("admin").id
+    });
+    return c.json(ok(result));
+  });
+
   api.post("/admin/codes/batch", async (c) => {
     const body = await readJson(c.req.raw);
     const appId = requireString(body.app_id, "app_id");
@@ -343,6 +435,22 @@ export function createApi() {
     const result = await service.getClientAppInfo({
       appId: requireString(body.app_id, "app_id"),
       appSecret: requireString(body.app_secret, "app_secret")
+    });
+    return c.json(ok(result));
+  });
+
+  api.post("/client/versions/latest", async (c) => {
+    const body = await readJson(c.req.raw);
+    const repo = new Repository(c.env.DB);
+    const service = new LicenseService(repo, c.env);
+    const currentVersionCode =
+      body.current_version_code === undefined || body.current_version_code === null
+        ? undefined
+        : requireInteger(body.current_version_code, "current_version_code", { min: 1 });
+    const result = await service.getClientLatestVersion({
+      appId: requireString(body.app_id, "app_id"),
+      appSecret: requireString(body.app_secret, "app_secret"),
+      currentVersionCode
     });
     return c.json(ok(result));
   });

@@ -7,6 +7,7 @@ import {
   KeyOutlined,
   PlayCircleOutlined,
   SignatureOutlined,
+  TagsOutlined,
   TeamOutlined
 } from "@ant-design/icons";
 import type { MenuDataItem } from "@ant-design/pro-components";
@@ -21,8 +22,9 @@ const DocsPage = lazy(() => import("./pages/DocsPage").then((module) => ({ defau
 const SdkPage = lazy(() => import("./pages/SdkPage").then((module) => ({ default: module.SdkPage })));
 const PlaygroundPage = lazy(() => import("./pages/PlaygroundPage").then((module) => ({ default: module.PlaygroundPage })));
 const TenantsPage = lazy(() => import("./pages/TenantsPage").then((module) => ({ default: module.TenantsPage })));
+const VersionsPage = lazy(() => import("./pages/VersionsPage").then((module) => ({ default: module.VersionsPage })));
 
-export type PageKey = "dashboard" | "tenants" | "apps" | "codes" | "generate" | "logs" | "docs" | "sdk" | "playground";
+export type PageKey = "dashboard" | "tenants" | "apps" | "codes" | "generate" | "logs" | "docs" | "sdk" | "playground" | "versions";
 
 type AdminRoute = MenuDataItem & {
   key: PageKey;
@@ -57,6 +59,13 @@ export function getAdminPageRoutes(t: Translate): AdminRoute[] {
     name: t("nav.apps"),
     icon: <AppstoreOutlined />,
     element: <AppsPage />
+  },
+  {
+    key: "versions",
+    path: "/versions",
+    name: t("nav.versions"),
+    icon: <TagsOutlined />,
+    element: <VersionsPage />
   },
   {
     key: "codes",
@@ -107,6 +116,7 @@ const routePaths: Array<[string, PageKey]> = [
   ["/dashboard", "dashboard"],
   ["/tenants", "tenants"],
   ["/apps", "apps"],
+  ["/versions", "versions"],
   ["/codes", "codes"],
   ["/generate", "generate"],
   ["/logs", "logs"],
@@ -133,7 +143,7 @@ export function getMenuRoutes(routes: AdminRoute[], t: Translate, isSuperAdmin: 
       key: "license",
       path: "/license",
       name: t("nav.license"),
-      children: [menuRouteMap.apps, menuRouteMap.codes, menuRouteMap.generate]
+      children: [menuRouteMap.apps, menuRouteMap.versions, menuRouteMap.codes, menuRouteMap.generate]
     },
     {
       key: "audit",

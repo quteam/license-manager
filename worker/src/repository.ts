@@ -11,7 +11,10 @@ import {
   LogResult,
   PlanRow,
   TenantRow,
-  TenantStatus
+  TenantStatus,
+  VersionListItem,
+  VersionRow,
+  VersionStatus
 } from "./types";
 
 type SqlValue = string | number | null;
@@ -33,6 +36,33 @@ export type LogListFilters = {
   action?: string;
   page: number;
   pageSize: number;
+};
+
+export type VersionListFilters = {
+  tenantId: number;
+  appId?: string;
+  status?: VersionStatus;
+  page: number;
+  pageSize: number;
+};
+
+export type CreateVersionInput = {
+  appDbId: number;
+  version: string;
+  versionCode: number;
+  releaseNotes: string;
+  downloadUrl?: string;
+  isForced: boolean;
+  createdBy: number;
+};
+
+export type UpdateVersionInput = {
+  versionId: number;
+  version: string;
+  versionCode: number;
+  releaseNotes: string;
+  downloadUrl?: string;
+  isForced: boolean;
 };
 
 export type ActivationCodeInsertInput = {
@@ -574,6 +604,176 @@ export class Repository {
       items: result.results ?? [],
       total: count?.total ?? 0
     };
+  }
+
+  async listVersions(filters: VersionListFilters): Promise<{ items: VersionListItem[]; total: number }> {
+    const where: string[] = ["a.tenant_id = ?", "v.deleted_at IS NULL"];
+    const bindings: SqlValue[] = [filters.tenantId];
+
+    if (filters.appId) {
+      where.push("a.app_id = ?");
+      bindings.push(filters.appId);
+    }
+    if (filters.status) {
+      where.push("v.status = ?");
+      bindings.push(filters.status);
+    }
+
+    const whereSql = where.length > 0 ? `WHERE ${where.join(" AND ")}` : "";
+    const baseFrom = `
+      FROM versions v
+      JOIN apps a ON a.id = v.app_id
+      ${whereSql}
+    `;
+    const offset = (filters.page - 1) * filters.pageSize;
+    const [count, result] = await Promise.all([
+      this.db
+        .prepare(`SELECT COUNT(*) AS total ${baseFrom}`)
+        .bind(...bindings)
+        .first<{ total: number }>(),
+      this.db
+        .prepare(
+          `SELECT
+             v.id,
+             v.app_id,
+             v.version,
+             v.version_code,
+             v.release_notes,
+             v.download_url,
+             v.is_forced,
+             v.status,
+             v.published_at,
+             v.created_by,
+             v.created_at,
+             v.updated_at,
+             a.app_id AS app_public_id,
+             a.name AS app_name,
+             a.tenant_id
+           ${baseFrom}
+           ORDER BY v.created_at DESC
+           LIMIT ? OFFSET ?`
+        )
+        .bind(...bindings, filters.pageSize, offset)
+        .all<VersionListItem>()
+    ]);
+    return {
+      items: result.results ?? [],
+      total: count?.total ?? 0
+    };
+  }
+
+  async getVersionById(versionId: number): Promise<VersionRow | null> {
+    return await this.db
+      .prepare("SELECT * FROM versions WHERE id = ? AND deleted_at IS NULL")
+      .bind(versionId)
+      .first<VersionRow>();
+  }
+
+  async getVersionWithTenant(versionId: number): Promise<(VersionRow & { tenant_id: number }) | null> {
+    return await this.db
+      .prepare(
+        `SELECT v.*, a.tenant_id
+         FROM versions v
+         JOIN apps a ON a.id = v.app_id
+         WHERE v.id = ? AND v.deleted_at IS NULL`
+      )
+      .bind(versionId)
+      .first<VersionRow & { tenant_id: number }>();
+  }
+
+  async getVersionByAppAndCode(appDbId: number, versionCode: number): Promise<VersionRow | null> {
+    return await this.db
+      .prepare("SELECT * FROM versions WHERE app_id = ? AND version_code = ? AND deleted_at IS NULL")
+      .bind(appDbId, versionCode)
+      .first<VersionRow>();
+  }
+
+  async createVersion(input: CreateVersionInput): Promise<VersionRow> {
+    await this.db
+      .prepare(
+        `INSERT INTO versions (app_id, version, version_code, release_notes, download_url, is_forced, status, created_by, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, 'draft', ?, ?)`
+      )
+      .bind(
+        input.appDbId,
+        input.version,
+        input.versionCode,
+        input.releaseNotes,
+        input.downloadUrl ?? "",
+        input.isForced ? 1 : 0,
+        input.createdBy,
+        new Date().toISOString()
+      )
+      .run();
+    const version = await this.db
+      .prepare("SELECT * FROM versions WHERE app_id = ? AND version_code = ? AND deleted_at IS NULL ORDER BY id DESC LIMIT 1")
+      .bind(input.appDbId, input.versionCode)
+      .first<VersionRow>();
+    if (!version) {
+      throw new Error("Failed to create version");
+    }
+    return version;
+  }
+
+  async updateVersion(input: UpdateVersionInput): Promise<VersionRow | null> {
+    const result = await this.db
+      .prepare(
+        `UPDATE versions SET version = ?, version_code = ?, release_notes = ?, download_url = ?, is_forced = ?, updated_at = ?
+         WHERE id = ? AND deleted_at IS NULL`
+      )
+      .bind(
+        input.version,
+        input.versionCode,
+        input.releaseNotes,
+        input.downloadUrl ?? "",
+        input.isForced ? 1 : 0,
+        new Date().toISOString(),
+        input.versionId
+      )
+      .run();
+    if (result.meta.changes !== 1) {
+      return null;
+    }
+    return await this.getVersionById(input.versionId);
+  }
+
+  async publishVersion(versionId: number, publishedAt: string): Promise<boolean> {
+    const result = await this.db
+      .prepare(
+        `UPDATE versions SET status = 'published', published_at = ?, updated_at = ?
+         WHERE id = ? AND status = 'draft' AND deleted_at IS NULL`
+      )
+      .bind(publishedAt, new Date().toISOString(), versionId)
+      .run();
+    return result.meta.changes === 1;
+  }
+
+  async unpublishVersion(versionId: number): Promise<boolean> {
+    const result = await this.db
+      .prepare(
+        `UPDATE versions SET status = 'draft', published_at = NULL, updated_at = ?
+         WHERE id = ? AND status = 'published' AND deleted_at IS NULL`
+      )
+      .bind(new Date().toISOString(), versionId)
+      .run();
+    return result.meta.changes === 1;
+  }
+
+  async softDeleteVersion(versionId: number): Promise<boolean> {
+    const result = await this.db
+      .prepare("UPDATE versions SET deleted_at = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL")
+      .bind(new Date().toISOString(), new Date().toISOString(), versionId)
+      .run();
+    return result.meta.changes === 1;
+  }
+
+  async getLatestPublishedVersion(appDbId: number): Promise<VersionRow | null> {
+    return await this.db
+      .prepare(
+        "SELECT * FROM versions WHERE app_id = ? AND status = 'published' AND deleted_at IS NULL ORDER BY version_code DESC LIMIT 1"
+      )
+      .bind(appDbId)
+      .first<VersionRow>();
   }
 
   async getDashboardStats(tenantId: number): Promise<DashboardStats> {

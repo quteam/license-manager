@@ -3,7 +3,7 @@ import { APP_STATUS, CODE_STATUS, LOG_ACTION, LOG_RESULT, type LogAction, type L
 import { hashPassword, hmacSha256, normalizeCode } from "../src/crypto";
 import { Repository } from "../src/repository";
 import { LicenseService } from "../src/service";
-import { ApiError, type AppRow, type Bindings, type CodeDetailRow, type ErrorCode } from "../src/types";
+import { ApiError, type AppRow, type Bindings, type CodeDetailRow, type ErrorCode, type VersionRow } from "../src/types";
 
 const env = {
   CODE_HMAC_SECRET: "code-secret",
@@ -113,7 +113,8 @@ describe("LicenseService client app info", () => {
       description: repo.app.description,
       purchase_url: repo.app.purchase_url,
       platform: repo.app.platform,
-      status: repo.app.status
+      status: repo.app.status,
+      latest_version: null
     });
   });
 
@@ -393,4 +394,238 @@ class MemoryRepo {
   async insertLog(input: LogInput) {
     this.logs.push(input);
   }
+
+  // --- versions ---
+  readonly versions: VersionRow[] = [];
+
+  async listVersions(filters: { tenantId: number; appId?: string; status?: string; page: number; pageSize: number }) {
+    const all = this.versions.filter((v) => {
+      if (v.deleted_at) {
+        return false;
+      }
+      if (v.app_id !== this.app.id) {
+        return false;
+      }
+      if (filters.status && v.status !== filters.status) {
+        return false;
+      }
+      return true;
+    });
+    const offset = (filters.page - 1) * filters.pageSize;
+    return {
+      items: all.slice(offset, offset + filters.pageSize).map((v) => ({
+        ...v,
+        app_public_id: this.app.app_id,
+        app_name: this.app.name,
+        tenant_id: this.app.tenant_id
+      })),
+      total: all.length
+    };
+  }
+
+  async getVersionById(versionId: number) {
+    return this.versions.find((v) => v.id === versionId && !v.deleted_at) ?? null;
+  }
+
+  async getVersionWithTenant(versionId: number) {
+    const version = await this.getVersionById(versionId);
+    return version ? { ...version, tenant_id: this.app.tenant_id } : null;
+  }
+
+  async getVersionByAppAndCode(appDbId: number, versionCode: number) {
+    return this.versions.find((v) => v.app_id === appDbId && v.version_code === versionCode && !v.deleted_at) ?? null;
+  }
+
+  async createVersion(input: {
+    appDbId: number;
+    version: string;
+    versionCode: number;
+    releaseNotes: string;
+    downloadUrl?: string;
+    isForced: boolean;
+    createdBy: number;
+  }) {
+    const version: VersionRow = {
+      id: this.versions.length + 1,
+      app_id: input.appDbId,
+      version: input.version,
+      version_code: input.versionCode,
+      release_notes: input.releaseNotes,
+      download_url: input.downloadUrl ?? "",
+      is_forced: input.isForced ? 1 : 0,
+      status: "draft",
+      published_at: null,
+      created_by: input.createdBy,
+      created_at: "2026-06-25T00:00:00.000Z",
+      updated_at: "2026-06-25T00:00:00.000Z",
+      deleted_at: null
+    };
+    this.versions.push(version);
+    return version;
+  }
+
+  async updateVersion(input: { versionId: number; version: string; versionCode: number; releaseNotes: string; downloadUrl?: string; isForced: boolean }) {
+    const version = await this.getVersionById(input.versionId);
+    if (!version) {
+      return null;
+    }
+    version.version = input.version;
+    version.version_code = input.versionCode;
+    version.release_notes = input.releaseNotes;
+    version.download_url = input.downloadUrl ?? "";
+    version.is_forced = input.isForced ? 1 : 0;
+    version.updated_at = "2026-06-25T00:00:01.000Z";
+    return version;
+  }
+
+  async publishVersion(versionId: number, publishedAt: string) {
+    const version = await this.getVersionById(versionId);
+    if (!version || version.status !== "draft") {
+      return false;
+    }
+    version.status = "published";
+    version.published_at = publishedAt;
+    version.updated_at = publishedAt;
+    return true;
+  }
+
+  async unpublishVersion(versionId: number) {
+    const version = await this.getVersionById(versionId);
+    if (!version || version.status !== "published") {
+      return false;
+    }
+    version.status = "draft";
+    version.published_at = null;
+    version.updated_at = "2026-06-25T00:00:01.000Z";
+    return true;
+  }
+
+  async softDeleteVersion(versionId: number) {
+    const version = await this.getVersionById(versionId);
+    if (!version) {
+      return false;
+    }
+    version.deleted_at = "2026-06-25T00:00:01.000Z";
+    return true;
+  }
+
+  async getLatestPublishedVersion(appDbId: number) {
+    const published = this.versions.filter((v) => v.app_id === appDbId && v.status === "published" && !v.deleted_at);
+    if (published.length === 0) {
+      return null;
+    }
+    return [...published].sort((a, b) => b.version_code - a.version_code)[0];
+  }
 }
+
+describe("LicenseService version management", () => {
+  let repo: MemoryRepo;
+  let service: LicenseService;
+
+  beforeEach(async () => {
+    repo = await MemoryRepo.create();
+    service = new LicenseService(repo as unknown as Repository, env);
+  });
+
+  it("creates a draft version and logs the action", async () => {
+    const result = await service.createVersion({
+      tenantId: 1,
+      appId: repo.app.app_id,
+      version: "1.0.0",
+      versionCode: 100,
+      releaseNotes: "首个版本",
+      downloadUrl: "https://example.com/app-v1.zip",
+      isForced: false,
+      adminId: 1
+    });
+    expect(result.version.version).toBe("1.0.0");
+    expect(result.version.status).toBe("draft");
+    expect(result.version.is_forced).toBe(0);
+    expect(repo.logs.at(-1)).toMatchObject({
+      action: LOG_ACTION.CREATE_VERSION,
+      result: LOG_RESULT.SUCCESS
+    });
+  });
+
+  it("rejects duplicate version codes for the same app", async () => {
+    await service.createVersion({ tenantId: 1, appId: repo.app.app_id, version: "1.0.0", versionCode: 100, releaseNotes: "", isForced: false, adminId: 1 });
+    await expect(
+      service.createVersion({ tenantId: 1, appId: repo.app.app_id, version: "1.0.1", versionCode: 100, releaseNotes: "", isForced: false, adminId: 1 })
+    ).rejects.toMatchObject({ code: "VERSION_CODE_CONFLICT" });
+  });
+
+  it("publishes a draft version and prevents republishing", async () => {
+    const created = await service.createVersion({ tenantId: 1, appId: repo.app.app_id, version: "1.0.0", versionCode: 100, releaseNotes: "", isForced: true, adminId: 1 });
+    const published = await service.publishVersion({ tenantId: 1, versionId: created.version.id, adminId: 1 });
+    expect(published.updated).toBe(true);
+    expect(repo.versions[0].status).toBe("published");
+    expect(repo.versions[0].published_at).not.toBeNull();
+    await expect(
+      service.publishVersion({ tenantId: 1, versionId: created.version.id, adminId: 1 })
+    ).rejects.toMatchObject({ code: "VERSION_NOT_PUBLISHABLE" });
+  });
+
+  it("unpublishes a published version back to draft", async () => {
+    const created = await service.createVersion({ tenantId: 1, appId: repo.app.app_id, version: "1.0.0", versionCode: 100, releaseNotes: "", isForced: false, adminId: 1 });
+    await service.publishVersion({ tenantId: 1, versionId: created.version.id, adminId: 1 });
+    const unpublished = await service.unpublishVersion({ tenantId: 1, versionId: created.version.id, adminId: 1 });
+    expect(unpublished.updated).toBe(true);
+    expect(repo.versions[0].status).toBe("draft");
+    expect(repo.versions[0].published_at).toBeNull();
+  });
+
+  it("updates a version and detects code conflicts on change", async () => {
+    const a = await service.createVersion({ tenantId: 1, appId: repo.app.app_id, version: "1.0.0", versionCode: 100, releaseNotes: "", isForced: false, adminId: 1 });
+    await service.createVersion({ tenantId: 1, appId: repo.app.app_id, version: "2.0.0", versionCode: 200, releaseNotes: "", isForced: false, adminId: 1 });
+    const updated = await service.updateVersion({ tenantId: 1, versionId: a.version.id, version: "1.0.1", releaseNotes: "修复", isForced: true, adminId: 1 });
+    expect(updated.version.version).toBe("1.0.1");
+    expect(updated.version.release_notes).toBe("修复");
+    expect(updated.version.is_forced).toBe(1);
+    await expect(
+      service.updateVersion({ tenantId: 1, versionId: a.version.id, versionCode: 200, adminId: 1 })
+    ).rejects.toMatchObject({ code: "VERSION_CODE_CONFLICT" });
+  });
+
+  it("soft deletes a version and hides it from queries", async () => {
+    const created = await service.createVersion({ tenantId: 1, appId: repo.app.app_id, version: "1.0.0", versionCode: 100, releaseNotes: "", isForced: false, adminId: 1 });
+    const deleted = await service.deleteVersion({ tenantId: 1, versionId: created.version.id, adminId: 1 });
+    expect(deleted.deleted).toBe(true);
+    const list = await service.listVersions({ tenantId: 1, page: 1, pageSize: 20 });
+    expect(list.total).toBe(0);
+  });
+
+  it("hides versions of other tenants", async () => {
+    const created = await service.createVersion({ tenantId: 1, appId: repo.app.app_id, version: "1.0.0", versionCode: 100, releaseNotes: "", isForced: false, adminId: 1 });
+    await expect(
+      service.deleteVersion({ tenantId: 999, versionId: created.version.id, adminId: 1 })
+    ).rejects.toMatchObject({ code: "VERSION_NOT_FOUND" });
+  });
+
+  it("returns the latest published version with update_required to clients", async () => {
+    const empty = await service.getClientLatestVersion({ appId: repo.app.app_id, appSecret: MemoryRepo.appSecret, currentVersionCode: 100 });
+    expect(empty.latest).toBeNull();
+    expect(empty.update_required).toBe(false);
+
+    await service.createVersion({ tenantId: 1, appId: repo.app.app_id, version: "1.0.0", versionCode: 100, releaseNotes: "", isForced: false, adminId: 1 });
+    await service.createVersion({ tenantId: 1, appId: repo.app.app_id, version: "2.0.0", versionCode: 200, releaseNotes: "强制更新", isForced: true, adminId: 1 });
+    await service.publishVersion({ tenantId: 1, versionId: 1, adminId: 1 });
+    await service.publishVersion({ tenantId: 1, versionId: 2, adminId: 1 });
+
+    const outdated = await service.getClientLatestVersion({ appId: repo.app.app_id, appSecret: MemoryRepo.appSecret, currentVersionCode: 100 });
+    expect(outdated.latest).toMatchObject({ version: "2.0.0", version_code: 200, is_forced: true });
+    expect(outdated.update_required).toBe(true);
+
+    const upToDate = await service.getClientLatestVersion({ appId: repo.app.app_id, appSecret: MemoryRepo.appSecret, currentVersionCode: 200 });
+    expect(upToDate.update_required).toBe(false);
+  });
+
+  it("attaches latest_version to app-info", async () => {
+    const before = await service.getClientAppInfo({ appId: repo.app.app_id, appSecret: MemoryRepo.appSecret });
+    expect(before.latest_version).toBeNull();
+
+    await service.createVersion({ tenantId: 1, appId: repo.app.app_id, version: "1.0.0", versionCode: 100, releaseNotes: "", isForced: false, adminId: 1 });
+    await service.publishVersion({ tenantId: 1, versionId: 1, adminId: 1 });
+    const after = await service.getClientAppInfo({ appId: repo.app.app_id, appSecret: MemoryRepo.appSecret });
+    expect(after.latest_version).toMatchObject({ version: "1.0.0", version_code: 100 });
+  });
+});

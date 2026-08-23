@@ -22,6 +22,7 @@
 | `DEVELOPMENT.md` | 环境、命令、测试策略和开发闭环 | 生产发布操作 |
 | `DEPLOYMENT.md` | Cloudflare、D1、Wrangler secret 和发布检查 | 日常编码规范 |
 | `INTEGRATION_PROMPT.md` | 客户端软件接入本授权系统的任务提示词（激活、校验、解绑、设备指纹、购买引导） | 具体接口契约和页面布局 |
+| `API_VERSIONS.md` | 版本控制接口：版本 CRUD、发布/下架、强制更新、客户端查询 | 其他接口契约 |
 
 根目录通用文档：
 

@@ -1,6 +1,6 @@
-import type { AdminRole, AppStatus, CodeStatus, ErrorCode, LogResult, TenantStatus } from "./constants";
+import type { AdminRole, AppStatus, CodeStatus, ErrorCode, LogResult, TenantStatus, VersionStatus } from "./constants";
 
-export type { AdminRole, AppStatus, CodeBulkAction, CodeListStatus, CodeStatus, ErrorCode, LogAction, LogResult, TenantStatus } from "./constants";
+export type { AdminRole, AppStatus, CodeBulkAction, CodeListStatus, CodeStatus, ErrorCode, LogAction, LogResult, TenantStatus, VersionStatus } from "./constants";
 
 export type Bindings = {
   DB: D1Database;
@@ -98,6 +98,37 @@ export type CodeDetailRow = ActivationCodeRow & {
   plan_code: string;
   plan_name: string;
   duration_days: number;
+};
+
+export type VersionRow = {
+  id: number;
+  app_id: number;
+  version: string;
+  version_code: number;
+  release_notes: string;
+  download_url: string;
+  is_forced: number;
+  status: VersionStatus;
+  published_at: string | null;
+  created_by: number | null;
+  created_at: string;
+  updated_at: string;
+  deleted_at: string | null;
+};
+
+export type VersionListItem = VersionRow & {
+  app_public_id: string;
+  app_name: string;
+  tenant_id: number;
+};
+
+export type ClientLatestVersion = {
+  version: string;
+  version_code: number;
+  release_notes: string;
+  download_url: string;
+  is_forced: boolean;
+  published_at: string | null;
 };
 
 export type DashboardStats = {

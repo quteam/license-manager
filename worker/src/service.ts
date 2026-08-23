@@ -8,14 +8,16 @@ import {
   LOG_ACTION,
   LOG_RESULT,
   TENANT_STATUS,
+  VERSION_STATUS,
   type AppStatus,
   type CodeBulkAction,
   type LogAction,
-  type TenantStatus
+  type TenantStatus,
+  type VersionStatus
 } from "./constants";
 import { codeSuffix, generateActivationCode, generateRandomToken, hashPassword, hmacSha256, normalizeCode, timingSafeEqual, verifyPassword } from "./crypto";
 import { Repository } from "./repository";
-import { ApiError, AppRow, Bindings, CodeDetailRow } from "./types";
+import { ApiError, AppRow, Bindings, ClientLatestVersion, CodeDetailRow, VersionRow } from "./types";
 
 export const MAX_REBINDS = 3;
 export const REBIND_COOLDOWN_MS = 24 * 60 * 60 * 1000;
@@ -304,6 +306,172 @@ export class LicenseService {
     };
   }
 
+  async listVersions(input: { tenantId: number; appId?: string; status?: VersionStatus; page: number; pageSize: number }) {
+    return await this.repo.listVersions(input);
+  }
+
+  async createVersion(input: {
+    tenantId: number;
+    appId: string;
+    version: string;
+    versionCode: number;
+    releaseNotes: string;
+    downloadUrl?: string;
+    isForced: boolean;
+    adminId: number;
+  }) {
+    const app = await this.repo.getAppByPublicId(input.appId, input.tenantId);
+    if (!app) {
+      throw new ApiError(404, "NOT_FOUND", "App not found");
+    }
+    const existing = await this.repo.getVersionByAppAndCode(app.id, input.versionCode);
+    if (existing) {
+      throw new ApiError(409, "VERSION_CODE_CONFLICT", "Version code already exists for this app");
+    }
+    const version = await this.repo.createVersion({
+      appDbId: app.id,
+      version: input.version,
+      versionCode: input.versionCode,
+      releaseNotes: input.releaseNotes,
+      downloadUrl: input.downloadUrl,
+      isForced: input.isForced,
+      createdBy: input.adminId
+    });
+    await this.repo.insertLog({
+      appDbId: app.id,
+      action: LOG_ACTION.CREATE_VERSION,
+      result: LOG_RESULT.SUCCESS,
+      message: `创建版本 ${version.version} (${version.version_code})，管理员 ID：${input.adminId}`
+    });
+    return {
+      version
+    };
+  }
+
+  async updateVersion(input: {
+    tenantId: number;
+    versionId: number;
+    version?: string;
+    versionCode?: number;
+    releaseNotes?: string;
+    downloadUrl?: string;
+    isForced?: boolean;
+    adminId: number;
+  }) {
+    const version = await this.requireTenantVersion(input.versionId, input.tenantId);
+    const merged = {
+      versionId: version.id,
+      version: input.version ?? version.version,
+      versionCode: input.versionCode ?? version.version_code,
+      releaseNotes: input.releaseNotes ?? version.release_notes,
+      downloadUrl: input.downloadUrl ?? version.download_url,
+      isForced: input.isForced ?? version.is_forced === 1
+    };
+    if (merged.versionCode !== version.version_code) {
+      const existing = await this.repo.getVersionByAppAndCode(version.app_id, merged.versionCode);
+      if (existing) {
+        throw new ApiError(409, "VERSION_CODE_CONFLICT", "Version code already exists for this app");
+      }
+    }
+    const updated = await this.repo.updateVersion(merged);
+    if (!updated) {
+      throw new ApiError(404, "VERSION_NOT_FOUND", "Version not found");
+    }
+    await this.repo.insertLog({
+      appDbId: version.app_id,
+      action: LOG_ACTION.UPDATE_VERSION,
+      result: LOG_RESULT.SUCCESS,
+      message: `修改版本 ${updated.version} (${updated.version_code})，管理员 ID：${input.adminId}`
+    });
+    return {
+      version: updated
+    };
+  }
+
+  async publishVersion(input: { tenantId: number; versionId: number; adminId: number }) {
+    const version = await this.requireTenantVersion(input.versionId, input.tenantId);
+    if (version.status !== VERSION_STATUS.DRAFT) {
+      throw new ApiError(400, "VERSION_NOT_PUBLISHABLE", "Only draft versions can be published");
+    }
+    const published = await this.repo.publishVersion(version.id, new Date().toISOString());
+    if (!published) {
+      throw new ApiError(400, "VERSION_NOT_PUBLISHABLE", "Version cannot be published");
+    }
+    await this.repo.insertLog({
+      appDbId: version.app_id,
+      action: LOG_ACTION.PUBLISH_VERSION,
+      result: LOG_RESULT.SUCCESS,
+      message: `发布版本 ${version.version} (${version.version_code})，管理员 ID：${input.adminId}`
+    });
+    return {
+      updated: true
+    };
+  }
+
+  async unpublishVersion(input: { tenantId: number; versionId: number; adminId: number }) {
+    const version = await this.requireTenantVersion(input.versionId, input.tenantId);
+    if (version.status !== VERSION_STATUS.PUBLISHED) {
+      throw new ApiError(400, "VERSION_NOT_PUBLISHABLE", "Only published versions can be unpublished");
+    }
+    const unpublished = await this.repo.unpublishVersion(version.id);
+    if (!unpublished) {
+      throw new ApiError(400, "VERSION_NOT_PUBLISHABLE", "Version cannot be unpublished");
+    }
+    await this.repo.insertLog({
+      appDbId: version.app_id,
+      action: LOG_ACTION.UNPUBLISH_VERSION,
+      result: LOG_RESULT.SUCCESS,
+      message: `下架版本 ${version.version} (${version.version_code})，管理员 ID：${input.adminId}`
+    });
+    return {
+      updated: true
+    };
+  }
+
+  async deleteVersion(input: { tenantId: number; versionId: number; adminId: number }) {
+    const version = await this.requireTenantVersion(input.versionId, input.tenantId);
+    const deleted = await this.repo.softDeleteVersion(version.id);
+    if (!deleted) {
+      throw new ApiError(404, "VERSION_NOT_FOUND", "Version not found");
+    }
+    await this.repo.insertLog({
+      appDbId: version.app_id,
+      action: LOG_ACTION.DELETE_VERSION,
+      result: LOG_RESULT.SUCCESS,
+      message: `删除版本 ${version.version} (${version.version_code})，管理员 ID：${input.adminId}`
+    });
+    return {
+      deleted: true
+    };
+  }
+
+  async getClientLatestVersion(input: { appId: string; appSecret: string; currentVersionCode?: number }) {
+    const app = await this.requireValidClientApp(input.appId, input.appSecret);
+    const latest = await this.repo.getLatestPublishedVersion(app.id);
+    if (!latest) {
+      return {
+        latest: null,
+        update_required: false
+      };
+    }
+    const updateRequired = input.currentVersionCode !== undefined && input.currentVersionCode < latest.version_code;
+    return {
+      latest: toClientVersion(latest),
+      update_required: updateRequired
+    };
+  }
+
+  private async requireTenantVersion(versionId: number, tenantId: number): Promise<VersionRow & { tenant_id: number }> {
+    const version = await this.repo.getVersionWithTenant(versionId);
+    if (!version) {
+      throw new ApiError(404, "VERSION_NOT_FOUND", "Version not found");
+    }
+    if (version.tenant_id !== tenantId) {
+      throw new ApiError(404, "VERSION_NOT_FOUND", "Version not found");
+    }
+    return version;
+  }
+
   async generateCodes(input: {
     tenantId: number;
     appId: string;
@@ -453,7 +621,11 @@ export class LicenseService {
 
   async getClientAppInfo(input: { appId: string; appSecret: string }) {
     const app = await this.requireValidClientApp(input.appId, input.appSecret);
-    return toClientAppInfo(app);
+    const latest = await this.repo.getLatestPublishedVersion(app.id);
+    return {
+      ...toClientAppInfo(app),
+      latest_version: latest ? toClientVersion(latest) : null
+    };
   }
 
   async verify(input: { appId: string; appSecret: string; code: string; deviceFingerprint: string }) {
@@ -775,6 +947,17 @@ function toClientAppInfo(app: AppRow) {
     purchase_url: app.purchase_url,
     platform: app.platform,
     status: app.status
+  };
+}
+
+function toClientVersion(version: VersionRow): ClientLatestVersion {
+  return {
+    version: version.version,
+    version_code: version.version_code,
+    release_notes: version.release_notes,
+    download_url: version.download_url,
+    is_forced: version.is_forced === 1,
+    published_at: version.published_at
   };
 }
 

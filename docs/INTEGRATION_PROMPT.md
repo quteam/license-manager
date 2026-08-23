@@ -40,6 +40,19 @@
    c) app-info 接口失败时静默降级（不阻塞主流程，仅不显示购买按钮）；
    d) 若用户未在后台配置购买链接，软件不报错、正常使用即可。
 
+【版本更新接入（建议实现）】
+在实现上述功能的同时，建议为客户端增加版本更新检查：
+1. 启动时（或定时）调用 POST /api/client/versions/latest（请求体含 app_id、app_secret、
+   current_version_code），也可以直接复用 /api/client/app-info 响应中的 latest_version
+   字段，无需额外请求。
+2. 若 latest 存在且 latest.version_code > current_version_code：
+   - latest.is_forced 为 true：必须更新，提示用户前往 latest.download_url 下载新版本，
+     阻止继续使用；
+   - latest.is_forced 为 false：提示用户可更新（可选）。
+3. 若 latest 为 null 或已是最新版本，不打扰用户。
+4. 更新说明 release_notes 为 Markdown 文本，可在更新弹窗中渲染展示。
+5. 接口调用失败时静默降级（不阻塞软件主流程，仅不提示更新）。
+
 【实现要求】
 1. 改动最小化：只新增必要的文件和修改必要的位置，不要大改现有代码结构，
    不要动与授权无关的功能。

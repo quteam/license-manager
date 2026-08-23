@@ -77,7 +77,12 @@ export const LOG_ACTION = {
   ENABLE_CODE: "enable_code",
   DISABLE_APP: "disable_app",
   ENABLE_APP: "enable_app",
-  ROTATE_APP_SECRET: "rotate_app_secret"
+  ROTATE_APP_SECRET: "rotate_app_secret",
+  CREATE_VERSION: "create_version",
+  UPDATE_VERSION: "update_version",
+  PUBLISH_VERSION: "publish_version",
+  UNPUBLISH_VERSION: "unpublish_version",
+  DELETE_VERSION: "delete_version"
 } as const;
 
 export const LOG_ACTION_VALUES = [
@@ -91,7 +96,12 @@ export const LOG_ACTION_VALUES = [
   LOG_ACTION.ENABLE_CODE,
   LOG_ACTION.DISABLE_APP,
   LOG_ACTION.ENABLE_APP,
-  LOG_ACTION.ROTATE_APP_SECRET
+  LOG_ACTION.ROTATE_APP_SECRET,
+  LOG_ACTION.CREATE_VERSION,
+  LOG_ACTION.UPDATE_VERSION,
+  LOG_ACTION.PUBLISH_VERSION,
+  LOG_ACTION.UNPUBLISH_VERSION,
+  LOG_ACTION.DELETE_VERSION
 ] as const;
 export type LogAction = (typeof LOG_ACTION_VALUES)[number];
 
@@ -104,6 +114,15 @@ export const LOG_RESULT_VALUES = [LOG_RESULT.SUCCESS, LOG_RESULT.FAILURE] as con
 export type LogResult = (typeof LOG_RESULT_VALUES)[number];
 
 export const MAX_CODE_BATCH_QUANTITY = 300;
+
+export const VERSION_STATUS = {
+  DRAFT: "draft",
+  PUBLISHED: "published",
+  ARCHIVED: "archived"
+} as const;
+
+export const VERSION_STATUS_VALUES = [VERSION_STATUS.DRAFT, VERSION_STATUS.PUBLISHED, VERSION_STATUS.ARCHIVED] as const;
+export type VersionStatus = (typeof VERSION_STATUS_VALUES)[number];
 
 export const ERROR_CODE = {
   BAD_REQUEST: "BAD_REQUEST",
@@ -119,7 +138,10 @@ export const ERROR_CODE = {
   DEVICE_MISMATCH: "DEVICE_MISMATCH",
   REBINDS_EXCEEDED: "REBINDS_EXCEEDED",
   REBINDS_TOO_FREQUENT: "REBINDS_TOO_FREQUENT",
-  CONFLICT: "CONFLICT"
+  CONFLICT: "CONFLICT",
+  VERSION_NOT_FOUND: "VERSION_NOT_FOUND",
+  VERSION_CODE_CONFLICT: "VERSION_CODE_CONFLICT",
+  VERSION_NOT_PUBLISHABLE: "VERSION_NOT_PUBLISHABLE"
 } as const;
 
 export const ERROR_CODE_VALUES = [
@@ -136,7 +158,10 @@ export const ERROR_CODE_VALUES = [
   ERROR_CODE.DEVICE_MISMATCH,
   ERROR_CODE.REBINDS_EXCEEDED,
   ERROR_CODE.REBINDS_TOO_FREQUENT,
-  ERROR_CODE.CONFLICT
+  ERROR_CODE.CONFLICT,
+  ERROR_CODE.VERSION_NOT_FOUND,
+  ERROR_CODE.VERSION_CODE_CONFLICT,
+  ERROR_CODE.VERSION_NOT_PUBLISHABLE
 ] as const;
 export type ErrorCode = (typeof ERROR_CODE_VALUES)[number];
 
@@ -158,6 +183,10 @@ export function isCodeToggleStatus(value: string): value is CodeToggleStatus {
 
 export function isCodeBulkAction(value: string): value is CodeBulkAction {
   return includesValue(CODE_BULK_ACTION_VALUES, value);
+}
+
+export function isVersionStatus(value: string): value is VersionStatus {
+  return includesValue(VERSION_STATUS_VALUES, value);
 }
 
 function includesValue<T extends string>(values: readonly T[], value: string): value is T {

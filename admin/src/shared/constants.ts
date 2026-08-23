@@ -80,7 +80,12 @@ export const LOG_ACTION = {
   ENABLE_CODE: "enable_code",
   DISABLE_APP: "disable_app",
   ENABLE_APP: "enable_app",
-  ROTATE_APP_SECRET: "rotate_app_secret"
+  ROTATE_APP_SECRET: "rotate_app_secret",
+  CREATE_VERSION: "create_version",
+  UPDATE_VERSION: "update_version",
+  PUBLISH_VERSION: "publish_version",
+  UNPUBLISH_VERSION: "unpublish_version",
+  DELETE_VERSION: "delete_version"
 } as const;
 
 export function getLogActionValueEnum(t: Translate) {
@@ -95,11 +100,33 @@ export function getLogActionValueEnum(t: Translate) {
     [LOG_ACTION.ENABLE_CODE]: { text: t("logs.enableCode") },
     [LOG_ACTION.DISABLE_APP]: { text: t("logs.disableApp") },
     [LOG_ACTION.ENABLE_APP]: { text: t("logs.enableApp") },
-    [LOG_ACTION.ROTATE_APP_SECRET]: { text: t("logs.rotateAppSecret") }
+    [LOG_ACTION.ROTATE_APP_SECRET]: { text: t("logs.rotateAppSecret") },
+    [LOG_ACTION.CREATE_VERSION]: { text: t("logs.createVersion") },
+    [LOG_ACTION.UPDATE_VERSION]: { text: t("logs.updateVersion") },
+    [LOG_ACTION.PUBLISH_VERSION]: { text: t("logs.publishVersion") },
+    [LOG_ACTION.UNPUBLISH_VERSION]: { text: t("logs.unpublishVersion") },
+    [LOG_ACTION.DELETE_VERSION]: { text: t("logs.deleteVersion") }
   } as const;
 }
 
 export type LogAction = (typeof LOG_ACTION)[keyof typeof LOG_ACTION];
+
+export const VERSION_STATUS = {
+  DRAFT: "draft",
+  PUBLISHED: "published",
+  ARCHIVED: "archived"
+} as const;
+
+export const VERSION_STATUS_VALUES = [VERSION_STATUS.DRAFT, VERSION_STATUS.PUBLISHED, VERSION_STATUS.ARCHIVED] as const;
+export type VersionStatus = (typeof VERSION_STATUS_VALUES)[number];
+
+export function getVersionStatusValueEnum(t: Translate) {
+  return {
+    [VERSION_STATUS.DRAFT]: { text: t("versions.statusDraft"), status: "Default" },
+    [VERSION_STATUS.PUBLISHED]: { text: t("versions.statusPublished"), status: "Success" },
+    [VERSION_STATUS.ARCHIVED]: { text: t("versions.statusArchived"), status: "Warning" }
+  } as const;
+}
 
 export const LOG_RESULT = {
   SUCCESS: "success",
