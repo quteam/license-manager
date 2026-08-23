@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { APP_STATUS, CODE_STATUS, LOG_ACTION, LOG_RESULT, type LogAction, type LogResult } from "../src/constants";
-import { hashPassword, hmacSha256, normalizeCode } from "../src/crypto";
+import { decryptPlaintext, encryptPlaintext, hashPassword, hmacSha256, normalizeCode } from "../src/crypto";
 import { Repository } from "../src/repository";
 import { LicenseService } from "../src/service";
 import { ApiError, type AppRow, type Bindings, type CodeDetailRow, type ErrorCode, type VersionRow } from "../src/types";
@@ -10,6 +10,7 @@ const env = {
   APP_SECRET_HMAC_SECRET: "app-secret-secret",
   DEVICE_HMAC_SECRET: "device-secret",
   JWT_SECRET: "jwt-secret",
+  CODE_PLAINTEXT_ENCRYPTION_KEY: "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY",
   ADMIN_BOOTSTRAP_USERNAME: "admin",
   ADMIN_BOOTSTRAP_PASSWORD: "recovery-secret"
 } as Bindings;
@@ -395,6 +396,22 @@ class MemoryRepo {
     this.logs.push(input);
   }
 
+  // --- distributor claim (mock) ---
+  claimResult: {
+    codeId: number;
+    codeHash: string;
+    codeSuffix: string;
+    planCode: string;
+    planName: string;
+    encrypted: string;
+  } | null = null;
+  claimCalls: Array<{ appDbId: number; tenantId: number; planCode?: string }> = [];
+
+  async claimNextCode(input: { appDbId: number; tenantId: number; planCode?: string }) {
+    this.claimCalls.push(input);
+    return this.claimResult;
+  }
+
   // --- versions ---
   readonly versions: VersionRow[] = [];
 
@@ -627,5 +644,89 @@ describe("LicenseService version management", () => {
     await service.publishVersion({ tenantId: 1, versionId: 1, adminId: 1 });
     const after = await service.getClientAppInfo({ appId: repo.app.app_id, appSecret: MemoryRepo.appSecret });
     expect(after.latest_version).toMatchObject({ version: "1.0.0", version_code: 100 });
+  });
+});
+
+describe("LicenseService distributor claim", () => {
+  let repo: MemoryRepo;
+  let service: LicenseService;
+
+  beforeEach(async () => {
+    repo = await MemoryRepo.create();
+    service = new LicenseService(repo as unknown as Repository, env);
+  });
+
+  it("claims the next unused code and returns the plaintext", async () => {
+    const encrypted = await encryptPlaintext("LM-AAAAA-BBBBB-CCCCC-DDDDD", env.CODE_PLAINTEXT_ENCRYPTION_KEY!);
+    repo.claimResult = {
+      codeId: 99,
+      codeHash: "hash-1",
+      codeSuffix: "DDDDD",
+      planCode: "monthly",
+      planName: "月卡",
+      encrypted
+    };
+    const result = await service.claimNextCode({
+      appId: repo.app.app_id,
+      appSecret: MemoryRepo.appSecret,
+      planCode: "monthly"
+    });
+    expect(result.code).toBe("LM-AAAAA-BBBBB-CCCCC-DDDDD");
+    expect(result.code_suffix).toBe("DDDDD");
+    expect(result.plan_code).toBe("monthly");
+    expect(repo.claimCalls).toHaveLength(1);
+    expect(repo.claimCalls[0]).toMatchObject({ appDbId: repo.app.id, tenantId: repo.app.tenant_id, planCode: "monthly" });
+    expect(repo.logs.at(-1)).toMatchObject({
+      codeId: 99,
+      action: LOG_ACTION.CLAIM_CODE,
+      result: LOG_RESULT.SUCCESS
+    });
+  });
+
+  it("rejects when no unused code is available", async () => {
+    repo.claimResult = null;
+    await expect(
+      service.claimNextCode({ appId: repo.app.app_id, appSecret: MemoryRepo.appSecret })
+    ).rejects.toMatchObject({ code: "NO_CODE_AVAILABLE" });
+  });
+
+  it("rejects when the encryption key is not configured", async () => {
+    const withoutKey = {
+      ...env,
+      CODE_PLAINTEXT_ENCRYPTION_KEY: undefined
+    } as Bindings;
+    const keylessService = new LicenseService(repo as unknown as Repository, withoutKey);
+    await expect(
+      keylessService.claimNextCode({ appId: repo.app.app_id, appSecret: MemoryRepo.appSecret })
+    ).rejects.toMatchObject({ code: "ENCRYPTION_KEY_NOT_CONFIGURED" });
+  });
+
+  it("rejects invalid app secret", async () => {
+    repo.claimResult = {
+      codeId: 1,
+      codeHash: "hash-1",
+      codeSuffix: "SUFFA",
+      planCode: "monthly",
+      planName: "月卡",
+      encrypted: "not-encrypted"
+    };
+    await expect(
+      service.claimNextCode({ appId: repo.app.app_id, appSecret: "wrong-secret" })
+    ).rejects.toMatchObject({ code: "INVALID_APP_SECRET" });
+    expect(repo.claimCalls).toHaveLength(0);
+  });
+});
+
+describe("encryptPlaintext / decryptPlaintext roundtrip", () => {
+  it("roundtrips a plaintext code", async () => {
+    const secret = env.CODE_PLAINTEXT_ENCRYPTION_KEY!;
+    const encrypted = await encryptPlaintext("LM-ABCDE-23456-FGHIJ-789KL", secret);
+    expect(encrypted).not.toContain("LM-");
+    await expect(decryptPlaintext(encrypted, secret)).resolves.toBe("LM-ABCDE-23456-FGHIJ-789KL");
+  });
+
+  it("fails to decrypt with a different key", async () => {
+    const encrypted = await encryptPlaintext("LM-ABCDE-23456-FGHIJ-789KL", env.CODE_PLAINTEXT_ENCRYPTION_KEY!);
+    await expect(decryptPlaintext(encrypted, "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWYx")).rejects.toThrow();
   });
 });

@@ -15,7 +15,7 @@ import {
   type TenantStatus,
   type VersionStatus
 } from "./constants";
-import { codeSuffix, generateActivationCode, generateRandomToken, hashPassword, hmacSha256, normalizeCode, timingSafeEqual, verifyPassword } from "./crypto";
+import { codeSuffix, decryptPlaintext, encryptPlaintext, generateActivationCode, generateRandomToken, hashPassword, hmacSha256, normalizeCode, timingSafeEqual, verifyPassword } from "./crypto";
 import { Repository } from "./repository";
 import { ApiError, AppRow, Bindings, ClientLatestVersion, CodeDetailRow, VersionRow } from "./types";
 
@@ -499,6 +499,7 @@ export class LicenseService {
     const codes: string[] = [];
     const pending: Parameters<Repository["createActivationCodes"]>[0] = [];
     const generatedHashes = new Set<string>();
+    const encryptionKey = this.env.CODE_PLAINTEXT_ENCRYPTION_KEY;
     let attempts = 0;
     while (codes.length < input.quantity) {
       attempts += 1;
@@ -518,7 +519,8 @@ export class LicenseService {
         planId: plan.id,
         codeHash,
         codeSuffix: codeSuffix(normalized),
-        createdBy: input.adminId
+        createdBy: input.adminId,
+        codePlaintextEncrypted: encryptionKey ? await encryptPlaintext(normalized, encryptionKey) : null
       });
       codes.push(code);
     }
@@ -625,6 +627,52 @@ export class LicenseService {
     return {
       ...toClientAppInfo(app),
       latest_version: latest ? toClientVersion(latest) : null
+    };
+  }
+
+  /**
+   * 分销商取码：从指定应用（可限定套餐）原子取走一张未售出激活码，返回明文。
+   * 复用 app_secret 鉴权（与客户端一致），取走后状态置为 issued（已售出），用户仍可正常激活。
+   */
+  async claimNextCode(input: { appId: string; appSecret: string; planCode?: string }) {
+    const app = await this.requireValidClientApp(input.appId, input.appSecret);
+    const encryptionKey = this.env.CODE_PLAINTEXT_ENCRYPTION_KEY;
+    if (!encryptionKey) {
+      throw new ApiError(500, "ENCRYPTION_KEY_NOT_CONFIGURED", "CODE_PLAINTEXT_ENCRYPTION_KEY is not configured");
+    }
+    let claimed = await this.repo.claimNextCode({
+      appDbId: app.id,
+      tenantId: app.tenant_id,
+      planCode: input.planCode
+    });
+    if (!claimed) {
+      throw new ApiError(404, "NO_CODE_AVAILABLE", "No unused activation code available");
+    }
+    // 并发被抢先时自动重试下一张（最多 3 次）
+    let attempts = 1;
+    while (!claimed && attempts < 3) {
+      claimed = await this.repo.claimNextCode({
+        appDbId: app.id,
+        tenantId: app.tenant_id,
+        planCode: input.planCode
+      });
+      attempts += 1;
+    }
+    if (!claimed) {
+      throw new ApiError(404, "NO_CODE_AVAILABLE", "No unused activation code available");
+    }
+    const code = await decryptPlaintext(claimed.encrypted, encryptionKey);
+    await this.repo.insertLog({
+      codeId: claimed.codeId,
+      appDbId: app.id,
+      action: LOG_ACTION.CLAIM_CODE,
+      result: LOG_RESULT.SUCCESS,
+      message: `分销取码（${claimed.planCode} ${claimed.planName}），尾号 ${claimed.codeSuffix}`
+    });
+    return {
+      code,
+      code_suffix: claimed.codeSuffix,
+      plan_code: claimed.planCode
     };
   }
 

@@ -447,6 +447,22 @@ export function createApi() {
     return c.json(ok(result));
   });
 
+  // 分销商取码：GET + Bearer app_secret 鉴权，供第三方自动发货系统调用
+  // ?app_id=app_xxx[&plan_code=monthly]
+  api.get("/distributor/claim", async (c) => {
+    const appId = requireString(c.req.query("app_id"), "app_id");
+    const planCode = c.req.query("plan_code")?.trim() || undefined;
+    const auth = c.req.header("authorization") ?? "";
+    const appSecret = auth.startsWith("Bearer ") ? auth.slice("Bearer ".length).trim() : "";
+    if (!appSecret) {
+      throw new ApiError(401, "UNAUTHORIZED", "Missing bearer token");
+    }
+    const repo = new Repository(c.env.DB);
+    const service = new LicenseService(repo, c.env);
+    const result = await service.claimNextCode({ appId, appSecret, planCode });
+    return c.json(ok(result));
+  });
+
   api.post("/client/versions/latest", async (c) => {
     const body = await readJson(c.req.raw);
     const repo = new Repository(c.env.DB);

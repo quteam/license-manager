@@ -72,6 +72,8 @@ export type ActivationCodeInsertInput = {
   codeHash: string;
   codeSuffix: string;
   createdBy: number;
+  /** AES-GCM 加密后的激活码明文；未配置加密密钥时为 null */
+  codePlaintextEncrypted?: string | null;
 };
 
 export class Repository {
@@ -350,7 +352,7 @@ export class Repository {
       return;
     }
     const updatedAt = new Date().toISOString();
-    // D1 单条语句绑定参数上限为 100（每条记录 7 个参数），按每批 10 条分批写入，留足安全余量
+    // D1 单条语句绑定参数上限为 100（每条记录 8 个参数），按每批 10 条分批写入，留足安全余量
     const CHUNK_SIZE = 10;
     for (let i = 0; i < inputs.length; i += CHUNK_SIZE) {
       const chunk = inputs.slice(i, i + CHUNK_SIZE);
@@ -380,6 +382,64 @@ export class Repository {
       .first<CodeDetailRow>();
   }
 
+  /**
+   * 分销商取码：原子取走指定应用（可限定套餐）最早一张「未售出且含加密明文」的激活码，置为 issued。
+   * 并发安全：UPDATE 时再次校验 status='unused'，被并发抢先则返回 null（调用方可重试）。
+   */
+  async claimNextCode(input: {
+    appDbId: number;
+    tenantId: number;
+    planCode?: string;
+  }): Promise<{
+    codeId: number;
+    codeHash: string;
+    codeSuffix: string;
+    planCode: string;
+    planName: string;
+    encrypted: string;
+  } | null> {
+    const now = new Date().toISOString();
+    const baseSql = `
+        SELECT c.id, c.code_hash, c.code_suffix, p.code AS plan_code, p.name AS plan_name, c.code_plaintext_encrypted AS encrypted
+        FROM activation_codes c
+        JOIN apps a ON a.id = c.app_id
+        JOIN plans p ON p.id = c.plan_id
+        WHERE a.tenant_id = ?
+          AND c.app_id = ?
+          AND c.status = 'unused'
+          AND c.code_plaintext_encrypted IS NOT NULL`;
+    const planClause = input.planCode ? " AND p.code = ?" : "";
+    const bindings = input.planCode
+      ? [input.tenantId, input.appDbId, input.planCode]
+      : [input.tenantId, input.appDbId];
+    const candidate = await this.db
+      .prepare(`${baseSql}${planClause} ORDER BY c.id ASC LIMIT 1`)
+      .bind(...bindings)
+      .first<{ id: number; code_hash: string; code_suffix: string; plan_code: string; plan_name: string; encrypted: string | null }>();
+    if (!candidate || !candidate.encrypted) {
+      return null;
+    }
+    const updated = await this.db
+      .prepare(
+        `UPDATE activation_codes
+         SET status = 'issued', issued_at = ?, updated_at = ?
+         WHERE id = ? AND status = 'unused'`
+      )
+      .bind(now, now, candidate.id)
+      .run();
+    if (updated.meta.changes !== 1) {
+      return null;
+    }
+    return {
+      codeId: candidate.id,
+      codeHash: candidate.code_hash,
+      codeSuffix: candidate.code_suffix,
+      planCode: candidate.plan_code,
+      planName: candidate.plan_name,
+      encrypted: candidate.encrypted
+    };
+  }
+
   async activateCode(input: {
     codeId: number;
     deviceHash: string;
@@ -395,7 +455,7 @@ export class Repository {
              device_hash = ?,
              updated_at = ?
          WHERE id = ?
-           AND status = 'unused'
+           AND status IN ('unused', 'issued')
            AND disabled_at IS NULL
            AND activated_at IS NULL
            AND expires_at IS NULL
@@ -1222,10 +1282,10 @@ export function buildActivationCodeInsertStatement(
   sql: string;
   bindings: SqlValue[];
 } {
-  const rows = inputs.map(() => "(?, ?, ?, ?, ?, 'unused', NULL, NULL, NULL, ?, ?)").join(", ");
+  const rows = inputs.map(() => "(?, ?, ?, ?, ?, 'unused', NULL, NULL, NULL, ?, ?, ?)").join(", ");
   return {
     sql: `INSERT INTO activation_codes
-       (batch_id, app_id, plan_id, code_hash, code_suffix, status, activated_at, expires_at, device_hash, created_by, updated_at)
+       (batch_id, app_id, plan_id, code_hash, code_suffix, status, activated_at, expires_at, device_hash, created_by, updated_at, code_plaintext_encrypted)
      VALUES ${rows}`,
     bindings: inputs.flatMap((input) => [
       input.batchId,
@@ -1234,7 +1294,8 @@ export function buildActivationCodeInsertStatement(
       input.codeHash,
       input.codeSuffix,
       input.createdBy,
-      updatedAt
+      updatedAt,
+      input.codePlaintextEncrypted ?? null
     ])
   };
 }

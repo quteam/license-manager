@@ -17,11 +17,12 @@ export function getAppStatusValueEnum(t: Translate) {
 
 export const CODE_STATUS = {
   UNUSED: "unused",
+  ISSUED: "issued",
   ACTIVE: "active",
   DELETED: "deleted"
 } as const;
 
-export const CODE_STATUS_VALUES = [CODE_STATUS.UNUSED, CODE_STATUS.ACTIVE, CODE_STATUS.DELETED] as const;
+export const CODE_STATUS_VALUES = [CODE_STATUS.UNUSED, CODE_STATUS.ISSUED, CODE_STATUS.ACTIVE, CODE_STATUS.DELETED] as const;
 export type CodeStatus = (typeof CODE_STATUS_VALUES)[number];
 
 export const CODE_DERIVED_STATUS = {
@@ -31,6 +32,7 @@ export const CODE_DERIVED_STATUS = {
 
 export const CODE_LIST_STATUS_VALUES = [
   CODE_STATUS.UNUSED,
+  CODE_STATUS.ISSUED,
   CODE_STATUS.ACTIVE,
   CODE_DERIVED_STATUS.DISABLED,
   CODE_DERIVED_STATUS.EXPIRED,
@@ -41,6 +43,7 @@ export type CodeListStatus = (typeof CODE_LIST_STATUS_VALUES)[number];
 export function getCodeListStatusValueEnum(t: Translate) {
   return {
     [CODE_STATUS.UNUSED]: { text: t("status.unused") },
+    [CODE_STATUS.ISSUED]: { text: t("status.issued") },
     [CODE_STATUS.ACTIVE]: { text: t("status.active") },
     [CODE_DERIVED_STATUS.DISABLED]: { text: t("status.codeDisabled") },
     [CODE_DERIVED_STATUS.EXPIRED]: { text: t("status.expired") },
@@ -88,7 +91,8 @@ export const LOG_ACTION = {
   UPDATE_VERSION: "update_version",
   PUBLISH_VERSION: "publish_version",
   UNPUBLISH_VERSION: "unpublish_version",
-  DELETE_VERSION: "delete_version"
+  DELETE_VERSION: "delete_version",
+  CLAIM_CODE: "claim_code"
 } as const;
 
 export function getLogActionValueEnum(t: Translate) {
@@ -109,7 +113,8 @@ export function getLogActionValueEnum(t: Translate) {
     [LOG_ACTION.UPDATE_VERSION]: { text: t("logs.updateVersion") },
     [LOG_ACTION.PUBLISH_VERSION]: { text: t("logs.publishVersion") },
     [LOG_ACTION.UNPUBLISH_VERSION]: { text: t("logs.unpublishVersion") },
-    [LOG_ACTION.DELETE_VERSION]: { text: t("logs.deleteVersion") }
+    [LOG_ACTION.DELETE_VERSION]: { text: t("logs.deleteVersion") },
+    [LOG_ACTION.CLAIM_CODE]: { text: t("logs.claimCode") }
   } as const;
 }
 

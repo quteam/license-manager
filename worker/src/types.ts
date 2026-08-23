@@ -9,6 +9,8 @@ export type Bindings = {
   CODE_HMAC_SECRET: string;
   APP_SECRET_HMAC_SECRET: string;
   DEVICE_HMAC_SECRET: string;
+  /** base64url 编码的 32 字节 AES-256-GCM 密钥，用于加密激活码明文（可选，未配置时生成不落明文、分销取码不可用） */
+  CODE_PLAINTEXT_ENCRYPTION_KEY?: string;
   ADMIN_BOOTSTRAP_USERNAME?: string;
   ADMIN_BOOTSTRAP_PASSWORD?: string;
 };

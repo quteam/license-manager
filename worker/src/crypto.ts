@@ -140,3 +140,47 @@ export async function verifyJwt(secret: string, token: string): Promise<JwtPaylo
     return null;
   }
 }
+
+const GCM_IV_LENGTH = 12;
+const activationCodeKeyCache = new Map<string, CryptoKey>();
+
+/**
+ * 使用 AES-256-GCM 加密激活码明文。
+ * secret 为 base64url 编码的 32 字节密钥（对应 env CODE_PLAINTEXT_ENCRYPTION_KEY）。
+ * 返回格式：base64url(iv + ciphertext + tag)。
+ */
+export async function encryptPlaintext(plaintext: string, secret: string): Promise<string> {
+  const key = await getActivationCodeKey(secret);
+  const iv = crypto.getRandomValues(new Uint8Array(GCM_IV_LENGTH));
+  const ciphertext = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, encoder.encode(plaintext));
+  const combined = new Uint8Array(GCM_IV_LENGTH + ciphertext.byteLength);
+  combined.set(iv, 0);
+  combined.set(new Uint8Array(ciphertext), GCM_IV_LENGTH);
+  return bytesToBase64Url(combined);
+}
+
+export async function decryptPlaintext(payload: string, secret: string): Promise<string> {
+  const key = await getActivationCodeKey(secret);
+  const combined = base64UrlToBytes(payload);
+  if (combined.length <= GCM_IV_LENGTH) {
+    throw new Error("Invalid encrypted payload");
+  }
+  const iv = new Uint8Array(combined.slice(0, GCM_IV_LENGTH));
+  const ciphertext = new Uint8Array(combined.slice(GCM_IV_LENGTH));
+  const plaintext = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, ciphertext);
+  return new TextDecoder().decode(plaintext);
+}
+
+async function getActivationCodeKey(secret: string): Promise<CryptoKey> {
+  const cached = activationCodeKeyCache.get(secret);
+  if (cached) {
+    return cached;
+  }
+  const raw = new Uint8Array(base64UrlToBytes(secret));
+  if (raw.length !== 32) {
+    throw new Error("CODE_PLAINTEXT_ENCRYPTION_KEY must be a base64url-encoded 32-byte key");
+  }
+  const key = await crypto.subtle.importKey("raw", raw, { name: "AES-GCM" }, false, ["encrypt", "decrypt"]);
+  activationCodeKeyCache.set(secret, key);
+  return key;
+}
