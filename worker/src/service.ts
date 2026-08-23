@@ -297,9 +297,9 @@ export class LicenseService {
     if (!app) {
       throw new ApiError(404, "NOT_FOUND", "App not found");
     }
-    const deleted = await this.repo.deleteAppIfUnreferenced(app.id);
+    const deleted = await this.repo.deleteAppWithData(app.id);
     if (!deleted) {
-      throw new ApiError(409, "CONFLICT", "App has activation data and cannot be deleted");
+      throw new ApiError(409, "CONFLICT", "App still has non-deleted activation codes and cannot be deleted");
     }
     return {
       deleted: true

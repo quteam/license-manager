@@ -266,18 +266,23 @@ export class Repository {
     return await this.getAppByPublicId(appId, tenantId);
   }
 
-  async deleteAppIfUnreferenced(appDbId: number): Promise<boolean> {
-    const result = await this.db
-      .prepare(
-        `DELETE FROM apps
-         WHERE id = ?
-           AND NOT EXISTS (SELECT 1 FROM activation_batches WHERE app_id = ?)
-           AND NOT EXISTS (SELECT 1 FROM activation_codes WHERE app_id = ?)
-           AND NOT EXISTS (SELECT 1 FROM activation_logs WHERE app_id = ?)`
-      )
-      .bind(appDbId, appDbId, appDbId, appDbId)
-      .run();
-    return result.meta.changes === 1;
+  async deleteAppWithData(appDbId: number): Promise<boolean> {
+    const pending = await this.db
+      .prepare("SELECT COUNT(*) AS total FROM activation_codes WHERE app_id = ? AND status != 'deleted'")
+      .bind(appDbId)
+      .first<{ total: number }>();
+    if ((pending?.total ?? 0) > 0) {
+      return false;
+    }
+    const result = await this.db.batch([
+      this.db.prepare("DELETE FROM activation_logs WHERE app_id = ?").bind(appDbId),
+      this.db.prepare("DELETE FROM activation_batches WHERE app_id = ?").bind(appDbId),
+      this.db.prepare("DELETE FROM versions WHERE app_id = ?").bind(appDbId),
+      this.db.prepare("DELETE FROM activation_codes WHERE app_id = ?").bind(appDbId),
+      this.db.prepare("DELETE FROM apps WHERE id = ?").bind(appDbId)
+    ]);
+    const last = result[result.length - 1] as { meta: { changes: number } } | undefined;
+    return last?.meta.changes === 1;
   }
 
   async getAppByPublicId(appId: string, tenantId?: number): Promise<AppRow | null> {
