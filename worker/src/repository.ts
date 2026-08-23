@@ -276,9 +276,9 @@ export class Repository {
     }
     const result = await this.db.batch([
       this.db.prepare("DELETE FROM activation_logs WHERE app_id = ?").bind(appDbId),
+      this.db.prepare("DELETE FROM activation_codes WHERE app_id = ?").bind(appDbId),
       this.db.prepare("DELETE FROM activation_batches WHERE app_id = ?").bind(appDbId),
       this.db.prepare("DELETE FROM versions WHERE app_id = ?").bind(appDbId),
-      this.db.prepare("DELETE FROM activation_codes WHERE app_id = ?").bind(appDbId),
       this.db.prepare("DELETE FROM apps WHERE id = ?").bind(appDbId)
     ]);
     const last = result[result.length - 1] as { meta: { changes: number } } | undefined;
