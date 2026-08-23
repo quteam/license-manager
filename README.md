@@ -164,7 +164,7 @@ curl -X POST https://your-domain.example.com/api/client/app-info \
 
 返回应用名称、描述、购买链接等公开信息，可用于客户端展示。
 
-> 完整的客户端/管理端接口规范见 [docs/API.md](docs/API.md)；后台「SDK 页面」提供 React、Vue、React Native、Angular、Svelte、Electron、Flutter/Dart、TypeScript Core 等示例代码，后台「Playground」可直接联调激活、校验、解绑。
+> 完整的客户端/管理端接口规范见 [docs/API.md](docs/API.md)；后台「SDK 页面」提供 React、Vue、React Native、Angular、Svelte、Electron、Flutter/Dart、TypeScript Core 等示例代码，后台「Playground」可直接联调激活、校验、解绑。如需将客户端软件完整接入本系统（含购买引导等要求），可直接使用 [docs/INTEGRATION_PROMPT.md](docs/INTEGRATION_PROMPT.md) 中的接入提示词交给 AI 编码助手执行。
 
 ---
 
