@@ -350,8 +350,13 @@ export class Repository {
       return;
     }
     const updatedAt = new Date().toISOString();
-    const statement = buildActivationCodeInsertStatement(inputs);
-    await this.db.prepare(statement.sql).bind(...statement.bindings).run();
+    // D1 单条语句绑定参数上限为 100（每条记录 7 个参数），按每批 10 条分批写入，留足安全余量
+    const CHUNK_SIZE = 10;
+    for (let i = 0; i < inputs.length; i += CHUNK_SIZE) {
+      const chunk = inputs.slice(i, i + CHUNK_SIZE);
+      const statement = buildActivationCodeInsertStatement(chunk, updatedAt);
+      await this.db.prepare(statement.sql).bind(...statement.bindings).run();
+    }
   }
 
   async findCodeByHash(codeHash: string): Promise<CodeDetailRow | null> {
