@@ -40,4 +40,28 @@ describe("validateEnv", () => {
 
     expect(() => validateEnv(env)).toThrowError("CODE_HMAC_SECRET must not use the example placeholder value");
   });
+
+  it("rejects env without DB binding when not on EdgeOne runtime", () => {
+    const env = { ...validEnv, DB: undefined };
+
+    expect(() => validateEnv(env)).toThrowError("Database binding DB is not configured");
+  });
+
+  it("accepts env without DB binding on EdgeOne runtime markers", () => {
+    expect(() =>
+      validateEnv({
+        ...validEnv,
+        DB: undefined,
+        EDGEONE_RUNTIME: "1"
+      })
+    ).not.toThrow();
+
+    expect(() =>
+      validateEnv({
+        ...validEnv,
+        DB: undefined,
+        TENCENTCLOUD_SCF_FUNCTIONNAME: "license-manager-xyz"
+      })
+    ).not.toThrow();
+  });
 });

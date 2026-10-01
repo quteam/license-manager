@@ -15,7 +15,8 @@
     "db:create": "wrangler d1 create license_manager"
   },
   "dependencies": {
-    "hono": "^4.12.25"
+    "hono": "^4.12.25",
+    "@edgeone/pages-blob": "^0.0.14"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20260616.1",

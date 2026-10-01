@@ -23,7 +23,11 @@ app.notFound(async (c) => {
   if (c.req.path.startsWith("/api/")) {
     return c.json(fail("NOT_FOUND", "API route not found"), 404);
   }
-  return c.env.ASSETS.fetch(c.req.raw);
+  // EdgeOne 部署时没有 ASSETS 绑定：静态请求由平台静态层 + middleware 处理
+  if (c.env.ASSETS && typeof c.env.ASSETS.fetch === "function") {
+    return c.env.ASSETS.fetch(c.req.raw);
+  }
+  return c.json(fail("NOT_FOUND", "Resource not found"), 404);
 });
 
 export default app;

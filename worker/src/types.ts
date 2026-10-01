@@ -3,8 +3,10 @@ import type { AdminRole, AppStatus, CodeStatus, ErrorCode, LogResult, TenantStat
 export type { AdminRole, AppStatus, CodeBulkAction, CodeListStatus, CodeStatus, ErrorCode, LogAction, LogResult, TenantStatus, VersionStatus } from "./constants";
 
 export type Bindings = {
-  DB: D1Database;
-  ASSETS: Fetcher;
+  /** Cloudflare D1 绑定；EdgeOne 部署时不存在（改用 Blob 存储） */
+  DB?: D1Database;
+  /** Cloudflare 静态资源绑定；EdgeOne 部署时不存在（静态资源由平台直接托管） */
+  ASSETS?: Fetcher;
   JWT_SECRET: string;
   CODE_HMAC_SECRET: string;
   APP_SECRET_HMAC_SECRET: string;
@@ -13,6 +15,11 @@ export type Bindings = {
   CODE_PLAINTEXT_ENCRYPTION_KEY?: string;
   ADMIN_BOOTSTRAP_USERNAME?: string;
   ADMIN_BOOTSTRAP_PASSWORD?: string;
+  /** EdgeOne Blob 命名空间（可选，默认 license-manager） */
+  BLOB_NAMESPACE?: string;
+  /** EdgeOne 运行时标记：云函数环境注入 / 本地联调可手动置 1 */
+  EDGEONE_RUNTIME?: string;
+  TENCENTCLOUD_SCF_FUNCTIONNAME?: string;
 };
 
 export type Variables = {
