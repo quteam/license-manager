@@ -4,7 +4,7 @@
 
 轻量、可自托管的多租户软件授权管理系统（License Manager），面向独立软件、桌面工具、插件、脚本工具和内部系统，覆盖从**应用接入、批量发码、设备激活、授权校验、受控换机到审计追踪**的完整闭环。
 
-后端与数据库运行在 Cloudflare Workers + D1 之上，API 使用 Hono 构建，管理后台由 React + Vite + Ant Design Pro 实现。Worker 同时托管后端接口与管理后台静态资源，可以较低运维成本部署到 Cloudflare 边缘网络。
+后端 API 使用 Hono 构建，管理后台由 React + Vite + Ant Design Pro 实现。支持两种独立部署形态：**Cloudflare Workers + D1**（Worker 同时托管后端接口与管理后台静态资源），以及 **腾讯云 EdgeOne Pages**（Node 云函数 + 平台原生 Blob 存储，国内访问更友好）。两种部署共享同一套业务规则与 API 契约，可按需选择。
 
 ---
 
@@ -28,7 +28,7 @@
 | 数据库 | Cloudflare D1、SQL migration |
 | 管理后台 | React、Vite、Ant Design Pro |
 | 包管理 | pnpm workspace |
-| 部署 | Wrangler、Worker assets |
+| 部署 | Cloudflare（Wrangler、Worker assets）；EdgeOne Pages（云函数、Blob、边缘中间件） |
 | 测试 | Vitest |
 
 ### 适用场景
@@ -174,11 +174,19 @@ curl -X POST https://your-domain.example.com/api/client/app-info \
 
 ## 部署教程
 
+### 一键部署按钮
+
+| EdgeOne Makers · 国际站 | EdgeOne Makers · 中国站 |
+| --- | --- |
+| [![使用 EdgeOne 部署](https://cdnstatic.tencentcs.com/edgeone/pages/deploy.svg)](https://edgeone.ai/pages/new?project-name=license-manager&repository-url=https://github.com/Rain48698/license-manager&install-command=corepack%20pnpm%20install%20--frozen-lockfile&build-command=corepack%20pnpm%20--filter%20%40license-manager%2Fadmin%20run%20build%20%26%26%20node%20scripts%2Fbuild-edgeone.mjs&output-directory=admin/dist&env=JWT_SECRET) | [![使用 EdgeOne 部署](https://cdnstatic.tencentcs.com/edgeone/pages/deploy.svg)](https://console.cloud.tencent.com/edgeone/pages/new?project-name=license-manager&repository-url=https://github.com/Rain48698/license-manager&install-command=corepack%20pnpm%20install%20--frozen-lockfile&build-command=corepack%20pnpm%20--filter%20%40license-manager%2Fadmin%20run%20build%20%26%26%20node%20scripts%2Fbuild-edgeone.mjs&output-directory=admin/dist&env=JWT_SECRET) |
+
+> EdgeOne 部署使用平台原生 Blob 存储，部署完成后需在项目设置中补齐环境变量，详见 [docs/EDGEONE_DEPLOYMENT.md](docs/EDGEONE_DEPLOYMENT.md)。仓库为私有时仅协作者可完成授权部署。
+
 ### 环境要求
 
 - Node.js `>=20.11.0`
 - pnpm `>=11.7.0`
-- Cloudflare 账号（生产部署）
+- Cloudflare 账号（Cloudflare 生产部署）或腾讯云账号（EdgeOne 部署）
 - Wrangler（由 `worker/package.json` 管理）
 
 ### 一、本地开发
@@ -229,6 +237,10 @@ wrangler secret put ADMIN_BOOTSTRAP_PASSWORD --config wrangler.production.toml -
 - 客户端激活、校验、解绑接口按预期返回。
 
 > 详细部署说明见 [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)。注意：`worker/.dev.vars`、`worker/wrangler.production.toml`、真实密钥、生产 D1 ID 与构建产物**均不得提交**到 Git。
+
+### 三、生产部署（EdgeOne Pages + Blob）
+
+EdgeOne 部署不依赖 Cloudflare，使用上方一键部署按钮或 `pnpm deploy:edgeone`（edgeone CLI）完成；数据库使用平台原生 Blob 存储，无需迁移，首次启动自动播种。环境变量清单、本地联调与部署后验证见 **[docs/EDGEONE_DEPLOYMENT.md](docs/EDGEONE_DEPLOYMENT.md)**。
 
 ---
 

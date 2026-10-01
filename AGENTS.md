@@ -2,6 +2,14 @@
 
 本文件是编码 Agent 的唯一入口。目标是让 Agent 用最少上下文完成可靠修改：先分类任务，再读取必要文档和实现事实，最后按影响范围验证并同步文档。
 
+## 项目概览
+
+多租户软件授权管理系统（License Manager）：覆盖应用接入、批量发码、设备激活、授权校验、受控换机、分销商取码与审计日志。产品定位和使用说明见根目录 `README.md`。
+
+- pnpm monorepo：`worker/` 是 Cloudflare Workers + Hono + D1 后端（包名 `@license-manager/worker`）；`admin/` 是 React + Vite + Ant Design Pro 管理后台（包名 `@license-manager/admin`）。
+- Worker 同时托管 `/api` 接口和管理后台静态资源（Worker assets），生产部署与 D1 远程迁移见 `docs/DEPLOYMENT.md`。
+- 测试位于 `worker/test/`（Vitest），按业务规则组织，不在 admin 侧。
+
 ## 执行流程
 
 每次任务按以下顺序执行：
@@ -27,7 +35,11 @@
 | 前端页面、交互、样式、后台结构 | `docs/FRONTEND.md` | `admin/src/routes.tsx`、`components/`、`pages/`、`api.ts` |
 | 本地命令、测试、开发环境 | `docs/DEVELOPMENT.md` | 根目录及子项目 `package.json` |
 | 构建、部署、D1 远程迁移、Worker assets | `docs/DEPLOYMENT.md` | Wrangler 配置和部署脚本 |
+| 版本控制接口（版本 CRUD、发布/下架、强制更新、客户端查询） | `docs/API_VERSIONS.md` | `worker/src/routes.ts`、相关测试 |
+| 客户端接入提示词或接入文档同步 | `docs/INTEGRATION_PROMPT.md` | `docs/API.md`、`docs/API_VERSIONS.md` |
+| Fork 本地改动（自定义天卡/永久卡套餐等）与上游同步恢复 | `docs/CUSTOM_DAILY_LIFETIME_PLANS.md` | `migrations/`、`git log` |
 | 文档结构、开源入口或规则归档 | `docs/README.md` | 根目录文档 |
+| EdgeOne Makers 开发与部署（Cloud/Edge Functions、KV/Blob、middleware、CLI） | `pages-llms.mdc`、`.zcode/skills/edgeone-makers-tools/SKILL.md`、`docs/EDGEONE_DEPLOYMENT.md` | `.zcode/skills/edgeone-makers-tools/references/` 下对应子技能；双平台存储适配见 `worker/src/storage.ts`、`worker/src/blobstore/` |
 
 任务跨多个类型时，只组合读取相关文档。例如新增 API 字段通常需要阅读 `API.md`；若字段持久化，再加读 `DATABASE.md`；若在后台展示，再加读 `FRONTEND.md`。
 
@@ -39,6 +51,7 @@
 - 运行时枚举和错误码以 `worker/src/constants.ts` 为实现来源；前端同类常量必须同步。
 - 本地和部署命令以各级 `package.json` 的 `scripts` 为实现来源。
 - 管理后台页面和菜单以 `admin/src/routes.tsx` 为实现来源。
+- EdgeOne Makers 平台规范以 `pages-llms.mdc` 和 `.zcode/skills/edgeone-makers-tools/` 为来源；部署走 `edgeone-makers-mcp-server`（MCP）或 `edgeone` CLI。
 - 安全不可破坏约束高于普通实现便利；发现冲突时停止扩大改动并优先消除风险。
 
 ## 代码边界
@@ -46,11 +59,14 @@
 - `worker/src/routes.ts`：HTTP 路由、参数读取、基础校验和响应组织。
 - `worker/src/service.ts`：业务规则、状态流转、跨 repository 操作。
 - `worker/src/repository.ts`：D1 SQL 访问，不承载业务判断。
+- `worker/src/storage.ts`：存储驱动选择（D1 绑定 → SQL Repository；EdgeOne 运行时 → Blob 驱动）。
+- `worker/src/blobstore/`：EdgeOne Blob 存储驱动（版本化 CAS、ID 发号、种子数据），与 `repository.ts` 实现同一方法契约；修改套餐种子需同步 `migrations/`。
 - `worker/src/constants.ts`：Worker 状态、动作、错误码等运行时常量和派生类型。
 - `worker/src/crypto.ts`：哈希、HMAC、JWT、随机码等加密逻辑。
 - `worker/src/http.ts`：JSON 读取、参数校验、成功/失败响应结构。
 - `worker/src/middleware.ts`：管理员 Bearer Token 鉴权。
 - `worker/src/time.ts`：过期判断和授权时长计算。
+- `worker/src/index.ts`：Worker 入口，挂载 `/api` 路由和全局错误处理。
 - `admin/src/App.tsx`：顶层 Provider、登录态和当前管理员加载。
 - `admin/src/routes.tsx`：页面注册、路径与菜单结构。
 - `admin/src/components/`：后台外壳、登录页和跨页面组件。
@@ -79,7 +95,7 @@
 - 保持改动集中，不做无关重构。
 - 不覆盖用户已有未提交改动；相关变更先读懂再继续。
 - 优先复用已有常量、类型、响应结构和组件模式。
-- SQL 只放 `repository.ts`，使用 prepared statement 和 `.bind(...)`。
+- SQL 只放 `repository.ts`，使用 prepared statement 和 `.bind(...)`；D1 单语句绑定参数上限 100，批量写入必须分批。
 - 前端接口调用只走 `admin/src/api.ts`。
 - 可见文案走 `admin/src/i18n/`，不要在新页面散落不可翻译文本。
 - 数据库 schema 变化必须新增 `migrations/` 文件，不修改已发布迁移表达线上变更。

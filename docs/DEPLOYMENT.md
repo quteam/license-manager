@@ -1,5 +1,7 @@
 # 部署指南
 
+> 本文档描述 Cloudflare Workers + D1 生产部署。EdgeOne Pages（Node 云函数 + Blob 存储）部署见 [EDGEONE_DEPLOYMENT.md](EDGEONE_DEPLOYMENT.md)，两种形态可独立选择。
+
 部署目标为 Cloudflare Workers + D1 + Worker assets。
 
 ## 创建 D1 数据库

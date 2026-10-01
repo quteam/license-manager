@@ -41,8 +41,8 @@ Admin browser                         Client application
 index.ts
   -> routes.ts
        -> service.ts
-            -> repository.ts
-                 -> D1
+            -> repository.ts            -> D1            （Cloudflare Workers）
+            -> blobstore/blob-repository.ts -> EdgeOne Blob （EdgeOne Pages）
 ```
 
 | 模块 | 职责 | 不应承担 |
@@ -50,7 +50,9 @@ index.ts
 | `index.ts` | 挂载 `/api`、全局错误转换、API 404、静态资源回退 | 业务规则和 SQL |
 | `routes.ts` | 路由、JSON/路径/查询参数读取、基础类型和范围校验、响应组织 | 状态流转和跨表业务 |
 | `service.ts` | 业务不变量、状态流转、鉴权后的领域操作、跨 repository 协调、业务日志 | 原始 HTTP 解析和内联 SQL |
-| `repository.ts` | prepared SQL、数据库读写、原子条件更新、查询结果映射 | 产品决策和 HTTP 响应 |
+| `repository.ts` | prepared SQL、数据库读写、原子条件更新、查询结果映射（Cloudflare/D1 驱动） | 产品决策和 HTTP 响应 |
+| `storage.ts` | 存储驱动选择：有 D1 绑定走 SQL Repository，EdgeOne 运行时走 Blob 驱动 | 业务规则 |
+| `blobstore/` | EdgeOne Blob 驱动：版本化 CAS 文档存储、ID 发号、种子数据、与 `repository.ts` 同契约的 BlobRepository | SQL、产品决策 |
 | `constants.ts` | 运行时状态、动作、错误码及派生类型 | 可变配置和展示文案 |
 | `crypto.ts` | 随机值、HMAC、密码哈希、JWT、常量时间比较 | 业务流程 |
 | `http.ts` | JSON 读取、通用参数校验、成功/失败 envelope | 领域校验 |
@@ -130,6 +132,8 @@ request
 ## 一致性与并发
 
 - D1 没有被假设为长事务业务引擎。关键竞争通过带前置条件的更新处理，例如“仅未激活时激活”“仅未绑定时绑定”。
+- EdgeOne Blob 驱动用“版本化键 + onlyIfNew 创建”实现同样的前置条件原子更新：写入 = 读最新版本 → 校验前置条件 → CAS 创建下一版本，冲突则重读重试；唯一约束（租户 slug、用户名、app_id、code_hash）用 create-if-absent 指针键实现，冲突错误消息含 `UNIQUE` 以复用 service 层识别。
+- Blob 驱动中记录文档是唯一事实源，辅助索引（应用码索引、日志分片、日统计）在记录写入之后更新；崩溃造成的索引陈旧由读路径自愈，不得把索引用作业务判断依据。
 - 条件更新失败表示状态已被其他请求改变，service 返回稳定的 `CONFLICT`，不得覆盖新状态。
 - 同设备重复激活是幂等成功；重复删除、重复状态更新是否成功以对应 repository 条件和 API 契约为准。
 - 批量操作允许部分命中，返回请求数量与实际更新数量；单个 ID 的日志只在实际更新后写入。

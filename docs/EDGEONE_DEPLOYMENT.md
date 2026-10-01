@@ -1,0 +1,83 @@
+# EdgeOne Pages 部署指南
+
+本项目除 Cloudflare Workers 外，还支持一键部署到腾讯云 **EdgeOne Pages**（Makers）。EdgeOne 部署使用平台原生 **Blob 存储** 作为持久层（Node 云函数 + Hono），业务规则、API 契约与管理后台与 Cloudflare 版本完全一致，两套部署可独立运行、互不依赖。
+
+> 平台差异速览：Cloudflare = Workers + D1(SQL)；EdgeOne = 云函数(Node 20) + Blob(文档模型)。
+> 两套存储驱动实现同一组 Repository 方法契约（见 `docs/ARCHITECTURE.md`），service 层业务规则完全共享。
+
+## 一键部署
+
+在 GitHub 仓库页面可使用部署按钮（仓库为私有时，仅仓库协作者可完成授权）：
+
+| 平台 | 按钮 |
+| --- | --- |
+| EdgeOne Makers · 国际站 | [![使用 EdgeOne 部署](https://cdnstatic.tencentcs.com/edgeone/pages/deploy.svg)](https://edgeone.ai/pages/new?project-name=license-manager&repository-url=https://github.com/Rain48698/license-manager&install-command=corepack%20pnpm%20install%20--frozen-lockfile&build-command=corepack%20pnpm%20--filter%20%40license-manager%2Fadmin%20run%20build%20%26%26%20node%20scripts%2Fbuild-edgeone.mjs&output-directory=admin/dist&env=JWT_SECRET) |
+| EdgeOne Makers · 中国站 | [![使用 EdgeOne 部署](https://cdnstatic.tencentcs.com/edgeone/pages/deploy.svg)](https://console.cloud.tencent.com/edgeone/pages/new?project-name=license-manager&repository-url=https://github.com/Rain48698/license-manager&install-command=corepack%20pnpm%20install%20--frozen-lockfile&build-command=corepack%20pnpm%20--filter%20%40license-manager%2Fadmin%20run%20build%20%26%26%20node%20scripts%2Fbuild-edgeone.mjs&output-directory=admin/dist&env=JWT_SECRET) |
+
+部署按钮只预填了构建参数与第一个密钥，其余环境变量需要在部署完成后的项目设置中补齐（见下文）。
+
+## 环境变量
+
+在 EdgeOne 控制台「项目设置 → 环境变量」（或 CLI `edgeone makers env set`）配置：
+
+| 变量 | 必填 | 说明 |
+| --- | --- | --- |
+| `JWT_SECRET` | ✅ | 管理后台会话 JWT 签名密钥，建议 `openssl rand -hex 32` |
+| `CODE_HMAC_SECRET` | ✅ | 激活码 HMAC 哈希密钥 |
+| `APP_SECRET_HMAC_SECRET` | ✅ | 应用密钥 HMAC 哈希密钥 |
+| `DEVICE_HMAC_SECRET` | ✅ | 设备指纹 HMAC 哈希密钥 |
+| `ADMIN_BOOTSTRAP_USERNAME` | 可选 | bootstrap 超级管理员用户名，与密码成对配置 |
+| `ADMIN_BOOTSTRAP_PASSWORD` | 可选 | bootstrap 管理员密码兼管理员密码恢复密钥，首次登录自动创建 |
+| `CODE_PLAINTEXT_ENCRYPTION_KEY` | 可选 | base64url 编码的 32 字节 AES-256-GCM 密钥；**分销取码必需**，未配置时激活码不落明文 |
+| `BLOB_NAMESPACE` | 可选 | Blob 命名空间名称，默认 `license-manager` |
+
+与 Cloudflare 部署的变量名完全一致；HMAC/AES 密钥一旦启用不可更换（否则已哈希数据无法匹配）。
+
+## 首次启动行为
+
+- Blob 部署没有 SQL 迁移。应用首次请求时自动幂等写入种子数据：默认租户（`default`）与全部套餐（天卡/两天卡/三天卡/周卡/月卡/季卡/年卡/永久卡），与 D1 迁移 `0001/0004/0006` 的种子保持一致。
+- bootstrap 管理员在首次登录时自动创建（与 Cloudflare 行为一致）。
+
+## 构建（本地或 CLI）
+
+```bash
+# 构建：admin 前端产物 + 云函数包（cloud-functions/api/[[default]].js，不提交）
+pnpm install
+pnpm build:edgeone
+
+# 本地开发（需 edgeone CLI 并完成 link；可联调云函数与 Blob）
+pnpm dev:edgeone        # 等价 edgeone makers dev，本地端口 8088
+
+# 部署（使用 edgeone.json 中的构建配置，自动构建上传）
+pnpm deploy:edgeone     # 等价 edgeone makers deploy
+```
+
+构建产物：
+
+- `admin/dist/`：管理后台静态资源（outputDirectory，由平台 CDN 直出）；
+- `cloud-functions/api/[[default]].js`：esbuild 全量打包的云函数（接管 `/api/*`，零运行时外部依赖）；
+- 根目录 `middleware.js`：边缘中间件，把非接口、无扩展名的页面导航改写到 `/index.html`（SPA history 兜底）。
+
+## 部署后验证清单
+
+- `GET /api/health` 返回 `{"ok":true,"data":{"status":"ok"}}`；
+- 打开管理后台首页与各菜单路由，浏览器控制台无报错（SPA 兜底生效）；
+- 使用 bootstrap 账号登录成功；
+- 创建应用（`app_secret` 只展示一次）、批量生成激活码（明文只展示一次）；
+- 客户端激活、校验、解绑接口正常；配了加密密钥时分销取码可用；
+- 仪表盘数字与操作一致；日志列表可筛选。
+
+## 与 Cloudflare 版本的语义差异
+
+双驱动对齐了全部业务不变量（前置条件原子更新、唯一约束、软删除、授权期从首次激活计算等），仅存在以下实现级差异：
+
+| 方面 | 说明 |
+| --- | --- |
+| 数据模型 | Blob 文档模型 + 版本化 CAS（乐观并发）替代 SQL；记录为事实源，索引陈旧由读路径自愈 |
+| 自增 ID | 无自增列，由发号器按块分配；ID 唯一但不保证连续，跨批次顺序与写入顺序可能有细微交错 |
+| 日志列表 | 未过滤查询的分页总数精确；带筛选的深分页最多扫描近 250 个小时分片，超出部分的 total 为近似值 |
+| 仪表盘 | 统计由索引实时聚合；极端崩溃场景下索引可由记录自愈 |
+| 事务 | 无跨记录事务；管理员批量操作（删除应用/租户、物理删码）改为幂等多步操作，部分失败重试即完成 |
+| 容量 | Blob 免费额度约 1 GB（与 D1 免费额度量级相近，适合中小规模发码场景） |
+
+> 本项目数据全部为哈希或密文（不存明文激活码、设备指纹、应用密钥），Blob 上同样遵循该约束。
