@@ -12,3 +12,20 @@ coverage
 *.log
 
 .playwright-cli
+
+# 本地 MCP 配置，内含 EdgeOne API Token，不得提交
+.zcode/config.json
+
+# EdgeOne 本地工具链与 CLI 状态
+.zcode/
+edgeone-makers-tools-2.3.3/
+pages-llms.mdc
+.edgeone/
+
+# EdgeOne 云函数构建产物（部署时由 build:edgeone 生成）
+cloud-functions/
+
+# Tencent Cloud EdgeOne
+.env
+.edgeone/*
+.tef_dist/*

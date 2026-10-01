@@ -7,4 +7,3 @@ allowBuilds:
   workerd: true
 minimumReleaseAgeExclude:
   - '@cloudflare/workers-types@4.20260616.1'
-storeDir: C:/Users/Rain48698/.workbuddy/binaries/node/pnpm-store

@@ -14,11 +14,17 @@
     "test": "pnpm --filter @license-manager/worker test",
     "deploy": "pnpm build:production && pnpm --filter @license-manager/worker deploy",
     "db:migrate:local": "pnpm --filter @license-manager/worker db:migrate:local",
-    "db:migrate:remote": "pnpm --filter @license-manager/worker db:migrate:remote"
+    "db:migrate:remote": "pnpm --filter @license-manager/worker db:migrate:remote",
+    "build:edgeone": "pnpm --filter @license-manager/admin build && node scripts/build-edgeone.mjs",
+    "dev:edgeone": "edgeone makers dev",
+    "deploy:edgeone": "edgeone makers deploy"
   },
   "engines": {
     "node": ">=20.11.0",
     "pnpm": ">=11.7.0"
   },
-  "packageManager": "pnpm@11.7.0"
+  "packageManager": "pnpm@11.7.0",
+  "devDependencies": {
+    "esbuild": "^0.28.1"
+  }
 }
