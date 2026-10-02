@@ -28,7 +28,7 @@
 | `DEVICE_HMAC_SECRET` | ✅ | 设备指纹 HMAC 哈希密钥 |
 | `ADMIN_BOOTSTRAP_USERNAME` | 可选 | bootstrap 超级管理员用户名，与密码成对配置 |
 | `ADMIN_BOOTSTRAP_PASSWORD` | 可选 | bootstrap 管理员密码兼管理员密码恢复密钥，首次登录自动创建 |
-| `CODE_PLAINTEXT_ENCRYPTION_KEY` | 可选 | base64url 编码的 32 字节 AES-256-GCM 密钥；**分销取码必需**，未配置时激活码不落明文 |
+| `CODE_PLAINTEXT_ENCRYPTION_KEY` | 可选 | 仅用于解密存量 AES-256-GCM 加密激活码；本分支新激活码明文直接入库，分销取码无需此密钥 |
 | `BLOB_NAMESPACE` | 可选 | Blob 命名空间名称，默认 `license-manager` |
 
 与 Cloudflare 部署的变量名完全一致；HMAC/AES 密钥一旦启用不可更换（否则已哈希数据无法匹配）。
@@ -37,6 +37,14 @@
 
 - Blob 部署没有 SQL 迁移。应用首次请求时自动幂等写入种子数据：默认租户（`default`）与全部套餐（天卡/两天卡/三天卡/周卡/月卡/季卡/年卡/永久卡），与 D1 迁移 `0001/0004/0006` 的种子保持一致。
 - bootstrap 管理员在首次登录时自动创建（与 Cloudflare 行为一致）。
+
+## 环境变量同步注意（CLI 部署）
+
+`edgeone makers deploy` 会在**仓库根目录**创建/同步 `.env`，并在部署时与项目环境变量双向同步：
+
+- **本地 `.env` 为空会清空项目已配置的环境变量**（实测踩坑）。部署前请确认根目录 `.env` 内容完整（可从控制台复制或 `edgeone makers env pull` 拉取），或统一在控制台维护环境变量；
+- 部署完成后建议删除根目录 `.env`：wrangler 会从仓库根向上查找并**优先加载 `.env`**，残留的 EdgeOne 密钥会覆盖本地 `.dev.vars`，导致本地 Cloudflare 开发登录异常；
+- 恢复方式：`edgeone makers env set <KEY> <VALUE>` 逐项重设后重新部署。
 
 ## 构建（本地或 CLI）
 
@@ -80,4 +88,4 @@ pnpm deploy:edgeone     # 等价 edgeone makers deploy
 | 事务 | 无跨记录事务；管理员批量操作（删除应用/租户、物理删码）改为幂等多步操作，部分失败重试即完成 |
 | 容量 | Blob 免费额度约 1 GB（与 D1 免费额度量级相近，适合中小规模发码场景） |
 
-> 本项目数据全部为哈希或密文（不存明文激活码、设备指纹、应用密钥），Blob 上同样遵循该约束。
+> 应用密钥与设备指纹仍只存 HMAC 结果；激活码按本分支需求明文入库（便于后台查询与补发），Blob 上同样遵循该约定。
