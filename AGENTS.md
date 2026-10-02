@@ -50,7 +50,7 @@
 - 数据库现状以按顺序应用后的 `migrations/` 为实现来源，不以 TypeScript 类型推测 schema。
 - 运行时枚举和错误码以 `worker/src/constants.ts` 为实现来源；前端同类常量必须同步。
 - 本地和部署命令以各级 `package.json` 的 `scripts` 为实现来源。
-- Wrangler 配置以 `worker/wrangler.toml`（本地）与私有的 `worker/wrangler.production.toml`（生产）为实现来源；根目录 `wrangler.jsonc` 仅供「Deploy to Cloudflare」一键按钮，修改入口或绑定时三处必须同步。
+- Wrangler 配置以根目录 `wrangler.jsonc`（本地开发 + Deploy to Cloudflare 一键部署共用）与私有的 `worker/wrangler.production.toml`（生产）为实现来源；本地密钥在根目录 `.dev.vars`。
 - 管理后台页面和菜单以 `admin/src/routes.tsx` 为实现来源。
 - EdgeOne Makers 平台规范以 `pages-llms.mdc` 和 `.zcode/skills/edgeone-makers-tools/` 为来源；部署走 `edgeone-makers-mcp-server`（MCP）或 `edgeone` CLI。
 - 安全不可破坏约束高于普通实现便利；发现冲突时停止扩大改动并优先消除风险。
@@ -105,7 +105,7 @@
 
 ## 不可破坏约束
 
-- 不保存或记录完整明文激活码。
+- 不保存或记录完整明文激活码。（本 feature/edgeone 分支按需求改为明文入库并在后台展示，分歧记录见 `docs/CUSTOM_DAILY_LIFETIME_PLANS.md`；日志消息、URL 与仓库文件仍不得出现明文激活码）
 - 不保存或记录应用密钥、设备指纹明文。
 - 激活码过期时间从首次激活时间计算。
 - 已解绑激活码重新绑定时不得重算授权起止时间。

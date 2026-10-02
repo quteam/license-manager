@@ -6,7 +6,7 @@
 
 README 顶部提供 [Deploy to Cloudflare](https://deploy.workers.cloudflare.com/?url=https://github.com/Rain48698/license-manager) 按钮，适合快速试用：
 
-- 按钮只识别**仓库根目录**的 [wrangler.jsonc](../wrangler.jsonc)（入口、assets、D1 绑定、迁移目录均已预置，D1 会在向导中自动创建并回填 ID）；根目录 `.dev.vars.example` 定义了向导需要填写的密钥。修改入口、绑定或资源名称时，必须同步根目录 `wrangler.jsonc`、`worker/wrangler.toml` 与私有的 `worker/wrangler.production.toml` 三处。
+- 按钮读取**仓库根目录**的 [wrangler.jsonc](../wrangler.jsonc)（它同时是本地开发的唯一 Wrangler 配置：入口、assets、D1 绑定、迁移目录均已预置，D1 会在向导中自动创建并回填 ID）；根目录 `.dev.vars.example` 定义了向导需要填写的密钥。修改入口、绑定或资源名称时，同步 `wrangler.jsonc` 与私有的 `worker/wrangler.production.toml` 两处。
 - 向导中构建命令保持默认（`pnpm run build`），**部署命令**改为 `npx wrangler d1 migrations apply license_manager --remote && npx wrangler deploy`（自动建库、执行迁移并发布）。
 - 仓库为私有时仅协作者可完成授权；公开后按钮对所有访客可用。
 - 自定义域名、生产密钥轮换等仍建议走本文档的手动生产流程（按钮部署与手动部署互不影响，均以 `wrangler` 配置为准）。
@@ -22,7 +22,7 @@ pnpm --filter @license-manager/worker db:create
 
 将返回的 `database_id` 写入本地私有生产配置 `worker/wrangler.production.toml` 的 `[[env.production.d1_databases]]`。
 
-公开提交的 `worker/wrangler.toml` 仅用于本地开发，顶层 `[[d1_databases]]` 保持占位值即可；线上部署和远程迁移统一通过 `worker/wrangler.production.toml` 的 `env.production` 读取生产 D1 绑定。
+根目录 `wrangler.jsonc` 用于本地开发与一键部署，D1 `database_id` 保持占位值即可；线上部署和远程迁移统一通过 `worker/wrangler.production.toml` 的 `env.production` 读取生产 D1 绑定。
 
 ## 创建私有生产配置
 

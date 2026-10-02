@@ -25,7 +25,7 @@
 - **授权周期从真正使用时开始**：天卡、两天卡、三天卡、周卡、月卡、季卡、年卡、永久卡均从首次激活开始计算有效期，提前生成和分发激活码不会损耗客户授权时长。
 - **一码一机，兼顾换机体验**：默认绑定单一设备，同设备重复激活保持幂等；用户可在次数和冷却时间约束下自助解绑，管理员也可处理例外换机。
 - **多租户统一运营**：一套部署可隔离管理多个客户、团队或业务线；超级管理员管理租户并切换业务上下文，租户管理员只能访问所属租户数据。
-- **敏感凭证最小化存储**：应用密钥和设备指纹不落库，设备指纹不落库，长期存储只保留 HMAC 结果或激活码后缀；激活码明文可选加密存储（AES-256-GCM），仅在分销取码时解密返回。
+- **敏感凭证最小化存储**：应用密钥和设备指纹不落库，长期存储只保留 HMAC 结果或激活码后缀；本分支激活码明文直接入库（便于后台查询与补发），管理后台与分销取码接口均返回完整激活码。
 - **授权运营可观察、可追溯**：仪表盘汇总应用、激活码、激活趋势和客户端失败；关键管理操作与客户端授权结果进入可筛选日志；删除激活码仍保留历史链路（软删除），也可物理强制删除。
 - **分销商自动发货**：第三方发货系统可通过取码接口按应用/套餐每次取走一张未售出卡密，自动发给买家；卡密状态完整流转（未激活 → 已售出 → 已激活），不会重复发放。
 - **从接口试用到客户端接入**：后台内置接口文档、调用流程、可复制示例、多框架 SDK/组件代码和真实 API Playground。
@@ -47,7 +47,7 @@
 - 客户端通过 `app_id`、`app_secret`、激活码和设备指纹完成激活与校验。
 - 需要"一码一机"，同时允许受控的自助换机。
 - 平台方统一管理多个客户或业务线，同时确保租户数据和管理权限隔离。
-- 希望在自托管的前提下，避免明文保存应用密钥和设备指纹；激活码明文加密存储，仅在分销取码时解密。
+- 希望在自托管的前提下，避免明文保存应用密钥和设备指纹；激活码明文入库，后台可随时查看与补发。
 
 ---
 
@@ -62,7 +62,7 @@
 
 访问部署后的管理后台地址（本地开发为 `http://localhost:5173`），使用 bootstrap 管理员账号登录：
 
-- 本地环境账号由 `worker/.dev.vars` 中的 `ADMIN_BOOTSTRAP_USERNAME` / `ADMIN_BOOTSTRAP_PASSWORD` 控制，首次登录时系统自动创建。
+- 本地环境账号由根目录 `.dev.vars` 中的 `ADMIN_BOOTSTRAP_USERNAME` / `ADMIN_BOOTSTRAP_PASSWORD` 控制，首次登录时系统自动创建。
 - 登录后会话有效期为 8 小时（JWT）。
 
 #### 2. 创建应用
@@ -86,7 +86,7 @@
 | 年卡（yearly） | 1 年 | 首次激活时间 + 1 个自然年 |
 | 永久卡（lifetime） | 永久 | 固定到期 `2099-12-31T23:59:59Z` |
 
-> 说明：天卡与永久卡为本仓库在基础上扩展的套餐类型（迁移文件 `migrations/0004_add_daily_lifetime_plans.sql`）。激活码明文只在生成响应中展示一次，请立即保存。
+> 说明：天卡与永久卡为本仓库在基础上扩展的套餐类型（迁移文件 `migrations/0004_add_daily_lifetime_plans.sql`）。激活码明文同时可在管理后台「激活码」页面随时查看。
 
 生成后可在「激活码管理」中按状态、应用、平台、套餐、关键字筛选，支持单个/批量禁用、启用、软删除，以及管理员手动解绑符合条件的已激活授权（不消耗用户自助迁移次数）。
 
@@ -207,7 +207,7 @@ pnpm dev
 
 - 管理后台：`http://localhost:5173`（Vite 热更新，接口代理到本地 Worker）
 - 本地 Worker：`http://localhost:8787`
-- 本地 bootstrap 管理员由 `worker/.dev.vars` 与 `worker/wrangler.toml` 控制；首次登录自动创建。
+- 本地 bootstrap 管理员由根目录 `.dev.vars` 控制；首次登录自动创建。
 
 ### 二、生产部署（Cloudflare Workers + D1）
 
@@ -235,10 +235,10 @@ wrangler secret put ADMIN_BOOTSTRAP_PASSWORD --config wrangler.production.toml -
 - `GET /api/health` 返回正常；
 - 管理后台能加载并完成登录；
 - 创建应用后 `app_secret` 只展示一次；
-- 生成激活码后明文 `codes` 只展示一次；
+- 生成激活码后明文 `codes` 在响应中返回，且可在管理后台「激活码」列表随时查看；
 - 客户端激活、校验、解绑接口按预期返回。
 
-> 详细部署说明见 [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)。注意：`worker/.dev.vars`、`worker/wrangler.production.toml`、真实密钥、生产 D1 ID 与构建产物**均不得提交**到 Git。
+> 详细部署说明见 [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)。注意：`.dev.vars`、`worker/wrangler.production.toml`、真实密钥、生产 D1 ID 与构建产物**均不得提交**到 Git。
 
 ### 三、生产部署（EdgeOne Pages + Blob）
 
@@ -301,7 +301,7 @@ pnpm deploy               # 构建并部署生产 Worker
 - 本项目采用 [MIT License](LICENSE)。
 - 贡献方式见 [CONTRIBUTING.md](CONTRIBUTING.md)。
 - 漏洞报告方式见 [SECURITY.md](SECURITY.md)。
-- 公开仓库不提交 `worker/.dev.vars`、`worker/wrangler.production.toml`、真实密钥、生产 D1 ID 或构建产物。
+- 公开仓库不提交 `.dev.vars`、`worker/wrangler.production.toml`、真实密钥、生产 D1 ID 或构建产物。
 
 ---
 
@@ -342,7 +342,7 @@ The backend and database run on Cloudflare Workers and D1, the API is built with
 
 ### 1. Admin Console
 
-1. **Log in** at the deployed admin URL (locally `http://localhost:5173`). The bootstrap admin is controlled by `ADMIN_BOOTSTRAP_USERNAME` / `ADMIN_BOOTSTRAP_PASSWORD` in `worker/.dev.vars` and is auto-created on first login. Sessions last 8 hours (JWT).
+1. **Log in** at the deployed admin URL (locally `http://localhost:5173`). The bootstrap admin is controlled by `ADMIN_BOOTSTRAP_USERNAME` / `ADMIN_BOOTSTRAP_PASSWORD` in the root `.dev.vars` and is auto-created on first login. Sessions last 8 hours (JWT).
 2. **Create an application** under App Management. The `app_secret` is shown **only once** — save it immediately (the database stores only an HMAC hash). Keep the `app_id` and `app_secret` for client integration.
 3. **Generate license keys** under Code Generation. Six built-in plans:
 
@@ -403,7 +403,7 @@ Admin console: `http://localhost:5173` · Local Worker: `http://localhost:8787`
 
 Verify after deployment: `/api/health` returns OK; the admin console loads and login works; `app_secret` and plaintext `codes` are shown only once; client activate/verify/unbind APIs behave as expected.
 
-> Never commit `worker/.dev.vars`, `worker/wrangler.production.toml`, real secrets, production D1 IDs, or build artifacts.
+> Never commit `.dev.vars`, `worker/wrangler.production.toml`, real secrets, production D1 IDs, or build artifacts.
 
 ## Common Commands
 
@@ -454,4 +454,4 @@ This repository follows the branch workflow defined in [WORKFLOW.md](WORKFLOW.md
 - Licensed under the [MIT License](LICENSE).
 - Contribution guidelines: [CONTRIBUTING.md](CONTRIBUTING.md).
 - Vulnerability reporting: [SECURITY.md](SECURITY.md).
-- Do not commit `worker/.dev.vars`, `worker/wrangler.production.toml`, real secrets, production D1 IDs, or build artifacts.
+- Do not commit `.dev.vars`, `worker/wrangler.production.toml`, real secrets, production D1 IDs, or build artifacts.
