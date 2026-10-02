@@ -55,7 +55,7 @@ EdgeOne 构建环境的 Node 版本由 `edgeone.json` 的 `nodeVersion` 决定�
 - 前端构建用的 Vite 8 要求 `^20.19.0 || >=22.12.0`，Node 20.18.0 不满足；
 - Node 20.18.0 内置 corepack 0.29.3，只带 npm 轮换前的旧签名公钥，`corepack pnpm install` 在拉取版本元数据时会验签失败，报 `Cannot find matching keyid` 并中断安装（Node 22.17.1 内置 corepack 0.33.0、Node 24.5.0 内置 0.34.0，都已包含新公钥）。
 
-因此 Git 导入建项目时，安装命令与编译命令保持 `corepack pnpm ...` 原样即可；若控制台另有 Node 版本选项，同样要选 22.13 以上（平台预装版本中 `22.17.1`、`24.5.0` 可用，`22.11.0` 仍然过旧）。日后若再次出现 `Cannot find matching keyid`，说明 npm 又轮换了签名密钥，处理方式是把 `nodeVersion` 提到更新的版本（corepack 随 Node 一起更新）。
+因此 Git 导入建项目时，安装命令与编译命令保持 `corepack pnpm ...` 原样即可。控制台「构建部署配置」同样提供 Node.js 版本选项，需与 `edgeone.json` 的 `nodeVersion` 保持一致：**两处都设为 `22.17.1` 或 `24.5.0`**（平台预装版本中 `22.11.0` 仍然过旧，不要选）。日后若再次出现 `Cannot find matching keyid`，说明 npm 又轮换了签名密钥，处理方式是把两处的 Node 版本一并提到更新的版本（corepack 随 Node 一起更新）。
 
 ## 构建（本地或 CLI）
 
