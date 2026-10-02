@@ -50,6 +50,7 @@
 - 数据库现状以按顺序应用后的 `migrations/` 为实现来源，不以 TypeScript 类型推测 schema。
 - 运行时枚举和错误码以 `worker/src/constants.ts` 为实现来源；前端同类常量必须同步。
 - 本地和部署命令以各级 `package.json` 的 `scripts` 为实现来源。
+- Wrangler 配置以 `worker/wrangler.toml`（本地）与私有的 `worker/wrangler.production.toml`（生产）为实现来源；根目录 `wrangler.jsonc` 仅供「Deploy to Cloudflare」一键按钮，修改入口或绑定时三处必须同步。
 - 管理后台页面和菜单以 `admin/src/routes.tsx` 为实现来源。
 - EdgeOne Makers 平台规范以 `pages-llms.mdc` 和 `.zcode/skills/edgeone-makers-tools/` 为来源；部署走 `edgeone-makers-mcp-server`（MCP）或 `edgeone` CLI。
 - 安全不可破坏约束高于普通实现便利；发现冲突时停止扩大改动并优先消除风险。

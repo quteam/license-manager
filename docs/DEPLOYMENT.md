@@ -2,6 +2,16 @@
 
 > 本文档描述 Cloudflare Workers + D1 生产部署。EdgeOne Pages（Node 云函数 + Blob 存储）部署见 [EDGEONE_DEPLOYMENT.md](EDGEONE_DEPLOYMENT.md)，两种形态可独立选择。
 
+## 一键部署（Deploy to Cloudflare）
+
+README 顶部提供 [Deploy to Cloudflare](https://deploy.workers.cloudflare.com/?url=https://github.com/Rain48698/license-manager) 按钮，适合快速试用：
+
+- 按钮只识别**仓库根目录**的 [wrangler.jsonc](../wrangler.jsonc)（入口、assets、D1 绑定、迁移目录均已预置，D1 会在向导中自动创建并回填 ID）；根目录 `.dev.vars.example` 定义了向导需要填写的密钥。修改入口、绑定或资源名称时，必须同步根目录 `wrangler.jsonc`、`worker/wrangler.toml` 与私有的 `worker/wrangler.production.toml` 三处。
+- 向导中构建命令保持默认（`pnpm run build`），**部署命令**改为 `npx wrangler d1 migrations apply license_manager --remote && npx wrangler deploy`（自动建库、执行迁移并发布）。
+- 仓库为私有时仅协作者可完成授权；公开后按钮对所有访客可用。
+- 自定义域名、生产密钥轮换等仍建议走本文档的手动生产流程（按钮部署与手动部署互不影响，均以 `wrangler` 配置为准）。
+
+
 部署目标为 Cloudflare Workers + D1 + Worker assets。
 
 ## 创建 D1 数据库

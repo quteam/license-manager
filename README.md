@@ -6,6 +6,16 @@
 
 后端 API 使用 Hono 构建，管理后台由 React + Vite + Ant Design Pro 实现。支持两种独立部署形态：**Cloudflare Workers + D1**（Worker 同时托管后端接口与管理后台静态资源），以及 **腾讯云 EdgeOne Pages**（Node 云函数 + 平台原生 Blob 存储，国内访问更友好）。两种部署共享同一套业务规则与 API 契约，可按需选择。
 
+## 一键部署
+
+| EdgeOne Makers · 国际站 | EdgeOne Makers · 中国站 | Cloudflare Workers · 全球站 |
+| --- | --- | --- |
+| [![使用 EdgeOne 部署](https://cdnstatic.tencentcs.com/edgeone/pages/deploy.svg)](https://edgeone.ai/pages/new?project-name=license-manager&repository-url=https://github.com/Rain48698/license-manager&install-command=corepack%20pnpm%20install%20--frozen-lockfile&build-command=corepack%20pnpm%20--filter%20%40license-manager%2Fadmin%20run%20build%20%26%26%20node%20scripts%2Fbuild-edgeone.mjs&output-directory=admin/dist&env=JWT_SECRET) | [![使用 EdgeOne 部署](https://cdnstatic.tencentcs.com/edgeone/pages/deploy.svg)](https://console.cloud.tencent.com/edgeone/pages/new?project-name=license-manager&repository-url=https://github.com/Rain48698/license-manager&install-command=corepack%20pnpm%20install%20--frozen-lockfile&build-command=corepack%20pnpm%20--filter%20%40license-manager%2Fadmin%20run%20build%20%26%26%20node%20scripts%2Fbuild-edgeone.mjs&output-directory=admin/dist&env=JWT_SECRET) | [![Deploy to Cloudflare Workers](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/Rain48698/license-manager) |
+
+> - 仓库为私有时仅协作者可完成授权部署；仓库公开后 Cloudflare 按钮对所有访客可用。
+> - **EdgeOne**：构建参数已预填，部署完成后需在项目设置补齐环境变量，详见 [docs/EDGEONE_DEPLOYMENT.md](docs/EDGEONE_DEPLOYMENT.md)。
+> - **Cloudflare**：向导中构建命令保持默认（`pnpm run build`），**部署命令**改为 `npx wrangler d1 migrations apply license_manager --remote && npx wrangler deploy`（自动建库、执行迁移并发布）；密钥按向导提示逐项填写，自定义域名等生产配置仍建议走 [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) 手动流程。
+
 ---
 
 ## 项目介绍
@@ -174,14 +184,6 @@ curl -X POST https://your-domain.example.com/api/client/app-info \
 
 ## 部署教程
 
-### 一键部署按钮
-
-| EdgeOne Makers · 国际站 | EdgeOne Makers · 中国站 |
-| --- | --- |
-| [![使用 EdgeOne 部署](https://cdnstatic.tencentcs.com/edgeone/pages/deploy.svg)](https://edgeone.ai/pages/new?project-name=license-manager&repository-url=https://github.com/Rain48698/license-manager&install-command=corepack%20pnpm%20install%20--frozen-lockfile&build-command=corepack%20pnpm%20--filter%20%40license-manager%2Fadmin%20run%20build%20%26%26%20node%20scripts%2Fbuild-edgeone.mjs&output-directory=admin/dist&env=JWT_SECRET) | [![使用 EdgeOne 部署](https://cdnstatic.tencentcs.com/edgeone/pages/deploy.svg)](https://console.cloud.tencent.com/edgeone/pages/new?project-name=license-manager&repository-url=https://github.com/Rain48698/license-manager&install-command=corepack%20pnpm%20install%20--frozen-lockfile&build-command=corepack%20pnpm%20--filter%20%40license-manager%2Fadmin%20run%20build%20%26%26%20node%20scripts%2Fbuild-edgeone.mjs&output-directory=admin/dist&env=JWT_SECRET) |
-
-> EdgeOne 部署使用平台原生 Blob 存储，部署完成后需在项目设置中补齐环境变量，详见 [docs/EDGEONE_DEPLOYMENT.md](docs/EDGEONE_DEPLOYMENT.md)。仓库为私有时仅协作者可完成授权部署。
-
 ### 环境要求
 
 - Node.js `>=20.11.0`
@@ -240,7 +242,7 @@ wrangler secret put ADMIN_BOOTSTRAP_PASSWORD --config wrangler.production.toml -
 
 ### 三、生产部署（EdgeOne Pages + Blob）
 
-EdgeOne 部署不依赖 Cloudflare，使用上方一键部署按钮或 `pnpm deploy:edgeone`（edgeone CLI）完成；数据库使用平台原生 Blob 存储，无需迁移，首次启动自动播种。环境变量清单、本地联调与部署后验证见 **[docs/EDGEONE_DEPLOYMENT.md](docs/EDGEONE_DEPLOYMENT.md)**。
+EdgeOne 部署不依赖 Cloudflare，使用文档开头的一键部署按钮或 `pnpm deploy:edgeone`（edgeone CLI）完成；数据库使用平台原生 Blob 存储，无需迁移，首次启动自动播种。环境变量清单、本地联调与部署后验证见 **[docs/EDGEONE_DEPLOYMENT.md](docs/EDGEONE_DEPLOYMENT.md)**。
 
 ---
 

@@ -1,0 +1,9 @@
+# 「Deploy to Cloudflare」一键部署按钮读取本文件，向导中需要逐项填入真实值。
+# 本地开发请使用 worker/.dev.vars（pnpm env:init 自动生成），字段名与生产 secrets 一致。
+JWT_SECRET="replace-with-a-long-random-secret"
+CODE_HMAC_SECRET="replace-with-a-long-random-secret"
+APP_SECRET_HMAC_SECRET="replace-with-a-long-random-secret"
+DEVICE_HMAC_SECRET="replace-with-a-long-random-secret"
+ADMIN_BOOTSTRAP_PASSWORD="change-me-before-use"
+# 可选：base64url 编码的 32 字节 AES-256-GCM 密钥，配置后激活码明文加密存储、分销取码可用
+CODE_PLAINTEXT_ENCRYPTION_KEY=

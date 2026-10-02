@@ -14,7 +14,7 @@
 | EdgeOne Makers · 国际站 | [![使用 EdgeOne 部署](https://cdnstatic.tencentcs.com/edgeone/pages/deploy.svg)](https://edgeone.ai/pages/new?project-name=license-manager&repository-url=https://github.com/Rain48698/license-manager&install-command=corepack%20pnpm%20install%20--frozen-lockfile&build-command=corepack%20pnpm%20--filter%20%40license-manager%2Fadmin%20run%20build%20%26%26%20node%20scripts%2Fbuild-edgeone.mjs&output-directory=admin/dist&env=JWT_SECRET) |
 | EdgeOne Makers · 中国站 | [![使用 EdgeOne 部署](https://cdnstatic.tencentcs.com/edgeone/pages/deploy.svg)](https://console.cloud.tencent.com/edgeone/pages/new?project-name=license-manager&repository-url=https://github.com/Rain48698/license-manager&install-command=corepack%20pnpm%20install%20--frozen-lockfile&build-command=corepack%20pnpm%20--filter%20%40license-manager%2Fadmin%20run%20build%20%26%26%20node%20scripts%2Fbuild-edgeone.mjs&output-directory=admin/dist&env=JWT_SECRET) |
 
-部署按钮只预填了构建参数与第一个密钥，其余环境变量需要在部署完成后的项目设置中补齐（见下文）。
+部署按钮只预填了构建参数与第一个密钥，其余环境变量需要在部署完成后的项目设置中补齐（见下文）。Cloudflare 的对应按钮与两平台按钮总表见 [README](../README.md#一键部署) 与 [DEPLOYMENT.md](DEPLOYMENT.md)。
 
 ## 环境变量
 
