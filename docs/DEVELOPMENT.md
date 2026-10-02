@@ -2,7 +2,7 @@
 
 ## 环境要求
 
-- Node.js `>=20.11.0`
+- Node.js `>=22.13.0`（`packageManager` 锁定的 pnpm 11.7.0 要求 Node `>=22.13`）
 - pnpm `>=11.7.0`
 - Cloudflare Wrangler，由 `worker/package.json` 管理
 

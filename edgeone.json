@@ -1,6 +1,6 @@
 {
   "name": "license-manager",
-  "nodeVersion": "20.18.0",
+  "nodeVersion": "22.17.1",
   "installCommand": "corepack pnpm install --frozen-lockfile",
   "buildCommand": "corepack pnpm --filter @license-manager/admin run build && node scripts/build-edgeone.mjs",
   "outputDirectory": "admin/dist",

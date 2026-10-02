@@ -186,7 +186,7 @@ curl -X POST https://your-domain.example.com/api/client/app-info \
 
 ### 环境要求
 
-- Node.js `>=20.11.0`
+- Node.js `>=22.13.0`（`packageManager` 锁定的 pnpm 11.7.0 要求 Node `>=22.13`）
 - pnpm `>=11.7.0`
 - Cloudflare 账号（Cloudflare 生产部署）或腾讯云账号（EdgeOne 部署）
 - Wrangler（由 `worker/package.json` 管理）

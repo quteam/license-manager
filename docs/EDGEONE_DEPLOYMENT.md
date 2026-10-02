@@ -2,7 +2,7 @@
 
 本项目除 Cloudflare Workers 外，还支持一键部署到腾讯云 **EdgeOne Pages**（Makers）。EdgeOne 部署使用平台原生 **Blob 存储** 作为持久层（Node 云函数 + Hono），业务规则、API 契约与管理后台与 Cloudflare 版本完全一致，两套部署可独立运行、互不依赖。
 
-> 平台差异速览：Cloudflare = Workers + D1(SQL)；EdgeOne = 云函数(Node 20) + Blob(文档模型)。
+> 平台差异速览：Cloudflare = Workers + D1(SQL)；EdgeOne = 云函数(Node 20 运行时) + Blob(文档模型)。构建环境要求的 Node 版本另见下文「构建环境 Node 版本要求」。
 > 两套存储驱动实现同一组 Repository 方法契约（见 `docs/ARCHITECTURE.md`），service 层业务规则完全共享。
 
 ## 一键部署
@@ -46,6 +46,16 @@
 - 部署完成后建议删除根目录 `.env`：wrangler 会从仓库根向上查找并**优先加载 `.env`**，残留的 EdgeOne 密钥会覆盖本地 `.dev.vars`，导致本地 Cloudflare 开发登录异常；
 - 恢复方式：`edgeone makers env set <KEY> <VALUE>` 逐项重设后重新部署（环境变量按部署快照生效，改完必须重新部署，生效约有 1 分钟延迟）；
 - 上述流程已固化为 `scripts/deploy-edgeone.mjs`（见下方 `pnpm deploy:edgeone`）：脚本会保证部署前 `.env` 非空、部署后自动清理，避免清空远端变量或污染本地开发密钥。
+
+## 构建环境 Node 版本要求
+
+EdgeOne 构建环境的 Node 版本由 `edgeone.json` 的 `nodeVersion` 决定，当前固定为 `22.17.1`，**不得降到 22.13 以下**。三条硬性约束：
+
+- `packageManager` 锁定的 pnpm 11.7.0 要求 Node `>=22.13`，Node 20 上 pnpm 会直接拒绝启动；
+- 前端构建用的 Vite 8 要求 `^20.19.0 || >=22.12.0`，Node 20.18.0 不满足；
+- Node 20.18.0 内置 corepack 0.29.3，只带 npm 轮换前的旧签名公钥，`corepack pnpm install` 在拉取版本元数据时会验签失败，报 `Cannot find matching keyid` 并中断安装（Node 22.17.1 内置 corepack 0.33.0、Node 24.5.0 内置 0.34.0，都已包含新公钥）。
+
+因此 Git 导入建项目时，安装命令与编译命令保持 `corepack pnpm ...` 原样即可；若控制台另有 Node 版本选项，同样要选 22.13 以上（平台预装版本中 `22.17.1`、`24.5.0` 可用，`22.11.0` 仍然过旧）。日后若再次出现 `Cannot find matching keyid`，说明 npm 又轮换了签名密钥，处理方式是把 `nodeVersion` 提到更新的版本（corepack 随 Node 一起更新）。
 
 ## 构建（本地或 CLI）
 

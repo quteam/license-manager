@@ -20,7 +20,7 @@
     "deploy:edgeone": "node scripts/deploy-edgeone.mjs"
   },
   "engines": {
-    "node": ">=20.11.0",
+    "node": ">=22.13.0",
     "pnpm": ">=11.7.0"
   },
   "packageManager": "pnpm@11.7.0",
