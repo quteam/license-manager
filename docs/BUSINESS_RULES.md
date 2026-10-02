@@ -88,7 +88,7 @@ issued -----------> deleted
 
 禁止 `active -> unused`、`deleted -> active` 和 `deleted -> unused`。
 
-`issued`（已售出）由分销商取码接口（`GET /api/distributor/claim`）产生：分销商每次取走一张 `unused` 激活码，状态变为 `issued`，之后买家仍可正常激活（`issued -> active`），不会被重复发放。未配置明文加密密钥时，`unused` 激活码无法被取走（无加密明文）。
+`issued`（已售出）由分销商取码接口（`GET /api/distributor/claim`）产生：分销商每次取走一张 `unused` 激活码，状态变为 `issued`，之后买家仍可正常激活（`issued -> active`），不会被重复发放。未配置明文加密密钥时，`unused` 激活码无法被取走（无加密明文）。并发取码时若与其它请求争抢同一张码，会自动重试下一张（最多 3 次），库存充足时不会误报 `NO_CODE_AVAILABLE`。
 
 管理后台展示状态按以下优先级计算，避免一个激活码同时显示多个主状态：
 

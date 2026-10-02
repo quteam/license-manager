@@ -226,6 +226,7 @@ export function createApi() {
     const result = await service.listVersions({
       tenantId: await resolveTenantId(c),
       appId: c.req.query("app_id") || undefined,
+      version: c.req.query("version")?.trim() || undefined,
       status: normalizedStatus,
       page,
       pageSize
@@ -378,7 +379,7 @@ export function createApi() {
     const body = await readJson(c.req.raw);
     const action = requireString(body.action, "action");
     if (!isCodeBulkAction(action)) {
-      throw new ApiError(400, "BAD_REQUEST", "action must be delete, enable or disable");
+      throw new ApiError(400, "BAD_REQUEST", "action must be delete, enable, disable or force_delete");
     }
     const ids = requireIntegerArray(body.ids, "ids", { min: 1, max: 100 });
     const repo = await createRepository(c.env);

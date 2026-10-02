@@ -385,6 +385,27 @@ describe("BlobRepository app deletion and versions", () => {
     expect(await repo.getVersionById(v1.version.id)).toBeNull();
     expect((await repo.listVersions({ tenantId: 1, page: 1, pageSize: 10 })).total).toBe(1);
   });
+
+  it("filters versions by version text", async () => {
+    const { repo, service } = await setup();
+    const app = await createTestApp(repo);
+    await service.createVersion({ tenantId: 1, appId: app.app_id, version: "1.2.3", versionCode: 100, releaseNotes: "", isForced: false, adminId: 9 });
+    await service.createVersion({ tenantId: 1, appId: app.app_id, version: "2.0.0", versionCode: 200, releaseNotes: "", isForced: false, adminId: 9 });
+
+    const matched = await repo.listVersions({ tenantId: 1, version: "1.2", page: 1, pageSize: 10 });
+    expect(matched.items.map((item) => item.version)).toEqual(["1.2.3"]);
+    expect((await repo.listVersions({ tenantId: 1, version: "9.9", page: 1, pageSize: 10 })).total).toBe(0);
+  });
+
+  it("rejects batch notes longer than the configured limit", async () => {
+    const { repo, service } = await setup();
+    const app = await createTestApp(repo);
+    await expect(
+      service.generateCodes({ tenantId: 1, appId: app.app_id, planCode: "monthly", quantity: 1, note: "x".repeat(121), adminId: 9 })
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    const accepted = await service.generateCodes({ tenantId: 1, appId: app.app_id, planCode: "monthly", quantity: 1, note: "x".repeat(120), adminId: 9 });
+    expect(accepted.quantity).toBe(1);
+  });
 });
 
 describe("BlobRepository logs and dashboard", () => {

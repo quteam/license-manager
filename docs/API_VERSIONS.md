@@ -36,9 +36,10 @@
 
 ### 版本列表
 
-`GET /api/admin/versions?app_id=&status=&page=&page_size=`
+`GET /api/admin/versions?app_id=&version=&status=&page=&page_size=`
 
 - `app_id`：可选，按应用公开 ID 筛选
+- `version`：可选，按版本号模糊匹配（如 `1.2` 命中 `1.2.3`）
 - `status`：可选，`draft` / `published` / `archived`
 - `page`：默认 1；`page_size`：默认 20，最大 100
 

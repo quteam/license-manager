@@ -185,6 +185,7 @@ export function VersionsPage() {
             const data = await apiRequest<ListResponse<VersionItem>>(
               `/api/admin/versions${toQuery({
                 app_id: params.app_id as string | undefined,
+                version: params.version as string | undefined,
                 page: params.current,
                 page_size: params.pageSize
               })}`

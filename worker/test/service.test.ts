@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { APP_STATUS, CODE_STATUS, LOG_ACTION, LOG_RESULT, type LogAction, type LogResult } from "../src/constants";
 import { decryptPlaintext, encryptPlaintext, hashPassword, hmacSha256, normalizeCode } from "../src/crypto";
 import { Repository } from "../src/repository";
-import { LicenseService } from "../src/service";
+import { MAX_CLAIM_ATTEMPTS, LicenseService } from "../src/service";
 import { ApiError, type AppRow, type Bindings, type CodeDetailRow, type ErrorCode, type VersionRow } from "../src/types";
 
 const env = {
@@ -406,9 +406,25 @@ class MemoryRepo {
     encrypted: string;
   } | null = null;
   claimCalls: Array<{ appDbId: number; tenantId: number; planCode?: string }> = [];
+  /** 按顺序消费的取码结果队列；为空时回退到 claimResult（用于模拟并发被抢先，null 表示被抢先） */
+  claimResultQueue: Array<
+    | {
+        codeId: number;
+        codeHash: string;
+        codeSuffix: string;
+        planCode: string;
+        planName: string;
+        code: string | null;
+        encrypted: string | null;
+      }
+    | null
+  > = [];
 
   async claimNextCode(input: { appDbId: number; tenantId: number; planCode?: string }) {
     this.claimCalls.push(input);
+    if (this.claimResultQueue.length > 0) {
+      return this.claimResultQueue.shift() ?? null;
+    }
     return this.claimResult;
   }
 
@@ -688,6 +704,33 @@ describe("LicenseService distributor claim", () => {
     await expect(
       service.claimNextCode({ appId: repo.app.app_id, appSecret: MemoryRepo.appSecret })
     ).rejects.toMatchObject({ code: "NO_CODE_AVAILABLE" });
+  });
+
+  it("retries the next code when a concurrent claim wins the race", async () => {
+    // 第一次取码被并发抢先（null），第二次成功
+    repo.claimResultQueue = [
+      null,
+      {
+        codeId: 100,
+        codeHash: "hash-2",
+        codeSuffix: "EEEEE",
+        planCode: "daily",
+        planName: "天卡",
+        code: null,
+        encrypted: await encryptPlaintext("LM-AAAAA-BBBBB-CCCCC-EEEEE", env.CODE_PLAINTEXT_ENCRYPTION_KEY!)
+      }
+    ];
+    const result = await service.claimNextCode({ appId: repo.app.app_id, appSecret: MemoryRepo.appSecret });
+    expect(result.code).toBe("LM-AAAAA-BBBBB-CCCCC-EEEEE");
+    expect(repo.claimCalls).toHaveLength(2);
+  });
+
+  it("gives up after the maximum attempts when stock is exhausted", async () => {
+    repo.claimResultQueue = [null, null, null];
+    await expect(
+      service.claimNextCode({ appId: repo.app.app_id, appSecret: MemoryRepo.appSecret })
+    ).rejects.toMatchObject({ code: "NO_CODE_AVAILABLE" });
+    expect(repo.claimCalls).toHaveLength(MAX_CLAIM_ATTEMPTS);
   });
 
   it("rejects when the encryption key is not configured", async () => {

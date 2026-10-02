@@ -42,9 +42,10 @@
 
 `edgeone makers deploy` 会在**仓库根目录**创建/同步 `.env`，并在部署时与项目环境变量双向同步：
 
-- **本地 `.env` 为空会清空项目已配置的环境变量**（实测踩坑）。部署前请确认根目录 `.env` 内容完整（可从控制台复制或 `edgeone makers env pull` 拉取），或统一在控制台维护环境变量；
+- **本地 `.env` 为空会清空项目已配置的环境变量**（实测踩坑，会导致整站 `/api/*` 报 `JWT_SECRET is not configured`）。部署前请确认根目录 `.env` 内容完整（可从控制台复制或 `edgeone makers env pull` 拉取），或统一在控制台维护环境变量；
 - 部署完成后建议删除根目录 `.env`：wrangler 会从仓库根向上查找并**优先加载 `.env`**，残留的 EdgeOne 密钥会覆盖本地 `.dev.vars`，导致本地 Cloudflare 开发登录异常；
-- 恢复方式：`edgeone makers env set <KEY> <VALUE>` 逐项重设后重新部署。
+- 恢复方式：`edgeone makers env set <KEY> <VALUE>` 逐项重设后重新部署（环境变量按部署快照生效，改完必须重新部署，生效约有 1 分钟延迟）；
+- 上述流程已固化为 `scripts/deploy-edgeone.mjs`（见下方 `pnpm deploy:edgeone`）：脚本会保证部署前 `.env` 非空、部署后自动清理，避免清空远端变量或污染本地开发密钥。
 
 ## 构建（本地或 CLI）
 
@@ -56,9 +57,12 @@ pnpm build:edgeone
 # 本地开发（需 edgeone CLI 并完成 link；可联调云函数与 Blob）
 pnpm dev:edgeone        # 等价 edgeone makers dev，本地端口 8088
 
-# 部署（使用 edgeone.json 中的构建配置，自动构建上传）
-pnpm deploy:edgeone     # 等价 edgeone makers deploy
+# 部署（安全包装：部署前保证 .env 非空、部署后清理）
+pnpm deploy:edgeone     # 等价 node scripts/deploy-edgeone.mjs，内部调用 edgeone makers deploy
+pnpm deploy:edgeone -- -n <project> --json   # 透传参数给 edgeone makers deploy
 ```
+
+`scripts/deploy-edgeone.mjs` 的环境变量来源优先级：`--env-file=<path>` → `.edgeone/env.local`（推荐本地私密文件，已在 `.gitignore`）→ 已存在的根目录 `.env` → `edgeone makers env pull`。若最终仍拿不到非空 `.env`，脚本会**直接中止**而不是冒险部署。
 
 构建产物：
 

@@ -123,6 +123,9 @@ export type LogResult = (typeof LOG_RESULT_VALUES)[number];
 
 export const MAX_CODE_BATCH_QUANTITY = 300;
 
+/** 批量发码备注长度上限（与前端输入框限制一致） */
+export const MAX_CODE_NOTE_LENGTH = 120;
+
 export const VERSION_STATUS = {
   DRAFT: "draft",
   PUBLISHED: "published",

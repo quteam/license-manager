@@ -41,6 +41,7 @@ export type LogListFilters = {
 export type VersionListFilters = {
   tenantId: number;
   appId?: string;
+  version?: string;
   status?: VersionStatus;
   page: number;
   pageSize: number;
@@ -714,6 +715,10 @@ export class Repository {
     if (filters.appId) {
       where.push("a.app_id = ?");
       bindings.push(filters.appId);
+    }
+    if (filters.version) {
+      where.push("v.version LIKE ?");
+      bindings.push(`%${filters.version}%`);
     }
     if (filters.status) {
       where.push("v.status = ?");

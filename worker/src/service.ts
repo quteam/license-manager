@@ -7,6 +7,7 @@ import {
   CODE_STATUS,
   LOG_ACTION,
   LOG_RESULT,
+  MAX_CODE_NOTE_LENGTH,
   TENANT_STATUS,
   VERSION_STATUS,
   type AppStatus,
@@ -21,6 +22,8 @@ import { ApiError, AppRow, Bindings, ClientLatestVersion, CodeDetailRow, Version
 
 export const MAX_REBINDS = 3;
 export const REBIND_COOLDOWN_MS = 24 * 60 * 60 * 1000;
+/** 分销取码并发被抢先时的最大尝试次数 */
+export const MAX_CLAIM_ATTEMPTS = 3;
 const READ_ONLY_ADMIN_USERNAME = "test";
 
 export class LicenseService {
@@ -306,7 +309,7 @@ export class LicenseService {
     };
   }
 
-  async listVersions(input: { tenantId: number; appId?: string; status?: VersionStatus; page: number; pageSize: number }) {
+  async listVersions(input: { tenantId: number; appId?: string; version?: string; status?: VersionStatus; page: number; pageSize: number }) {
     return await this.repo.listVersions(input);
   }
 
@@ -484,6 +487,9 @@ export class LicenseService {
     if (!app) {
       throw new ApiError(404, "NOT_FOUND", "App not found");
     }
+    if (input.note && input.note.length > MAX_CODE_NOTE_LENGTH) {
+      throw new ApiError(400, "BAD_REQUEST", `note must be at most ${MAX_CODE_NOTE_LENGTH} characters`);
+    }
     const plan = await this.repo.getPlanByCode(input.planCode);
     if (!plan) {
       throw new ApiError(404, "NOT_FOUND", "Plan not found");
@@ -640,23 +646,17 @@ export class LicenseService {
     if (!encryptionKey) {
       throw new ApiError(500, "ENCRYPTION_KEY_NOT_CONFIGURED", "CODE_PLAINTEXT_ENCRYPTION_KEY is not configured");
     }
-    let claimed = await this.repo.claimNextCode({
-      appDbId: app.id,
-      tenantId: app.tenant_id,
-      planCode: input.planCode
-    });
-    if (!claimed) {
-      throw new ApiError(404, "NO_CODE_AVAILABLE", "No unused activation code available");
-    }
-    // 并发被抢先时自动重试下一张（最多 3 次）
-    let attempts = 1;
-    while (!claimed && attempts < 3) {
+    // 并发下可能被其他请求抢先取走同一张码，仓库层返回 null 时重试下一张（最多 3 次）
+    let claimed = null;
+    for (let attempt = 1; attempt <= MAX_CLAIM_ATTEMPTS; attempt += 1) {
       claimed = await this.repo.claimNextCode({
         appDbId: app.id,
         tenantId: app.tenant_id,
         planCode: input.planCode
       });
-      attempts += 1;
+      if (claimed) {
+        break;
+      }
     }
     if (!claimed) {
       throw new ApiError(404, "NO_CODE_AVAILABLE", "No unused activation code available");

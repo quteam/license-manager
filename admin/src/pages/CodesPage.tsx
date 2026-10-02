@@ -430,7 +430,7 @@ function CodesGuide() {
               <Descriptions bordered size="small" column={1} style={{ maxWidth: 760 }}>
                 <Descriptions.Item label={t("codes.guideDistApiUrl")}>
                   <Text code copyable>
-                    GET https://kami.060908.xyz/api/distributor/claim?app_id=app_xxx&plan_code=monthly
+                    {`GET ${window.location.origin}/api/distributor/claim?app_id=app_xxx&plan_code=monthly`}
                   </Text>
                 </Descriptions.Item>
                 <Descriptions.Item label={t("codes.guideDistHeaders")}>

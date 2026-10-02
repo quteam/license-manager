@@ -17,7 +17,7 @@
     "db:migrate:remote": "pnpm --filter @license-manager/worker db:migrate:remote",
     "build:edgeone": "pnpm --filter @license-manager/admin build && node scripts/build-edgeone.mjs",
     "dev:edgeone": "edgeone makers dev",
-    "deploy:edgeone": "edgeone makers deploy"
+    "deploy:edgeone": "node scripts/deploy-edgeone.mjs"
   },
   "engines": {
     "node": ">=20.11.0",

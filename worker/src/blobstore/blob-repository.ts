@@ -139,6 +139,8 @@ type DailyLogStats = { total: number; success: number; client_failures: number }
 
 const CLIENT_LOG_ACTIONS = new Set<string>([LOG_ACTION.ACTIVATE, LOG_ACTION.VERIFY, LOG_ACTION.UNBIND_DEVICE]);
 const MAX_LOG_SHARD_SCAN = 250;
+/** 激活码列表单页并行读 Blob 的并发上限：避免串行导致耗时随 page_size 线性增长 */
+const CODE_PAGE_READ_CONCURRENCY = 32;
 
 export class BlobRepository {
   readonly store: DocStore;
@@ -891,15 +893,41 @@ export class BlobRepository {
 
     const offset = (filters.page - 1) * filters.pageSize;
     const pageEntries = filtered.slice(offset, offset + filters.pageSize);
+    // 逐行串行读 Blob 会让列表耗时随 page_size 线性增长（EdgeOne 上 100 条/页会撞上平台函数超时），
+    // 因此改为有并发上限的并行读取；同一批次的码共享一条 batch 文档，去重后只读一次。
+    const records = await mapWithConcurrency(pageEntries, CODE_PAGE_READ_CONCURRENCY, async ({ entry }) =>
+      await this.store.readData<CodeRecord>(`code/${entry.hash}`)
+    );
+    const batchIds = new Set<number>();
+    for (const record of records) {
+      if (record && record.batch_id !== null) {
+        batchIds.add(record.batch_id);
+      }
+    }
+    const batches = new Map<number, BatchRecord>();
+    await Promise.all(
+      [...batchIds].map(async (batchId) => {
+        const batch = await this.store.readData<BatchRecord>(`batch/${batchId}`);
+        if (batch) {
+          batches.set(batchId, batch);
+        }
+      })
+    );
+
     const items: CodeListItem[] = [];
-    for (const { entry, app } of pageEntries) {
-      const record = await this.store.readData<CodeRecord>(`code/${entry.hash}`);
+    const heals: Array<Promise<void>> = [];
+    for (let index = 0; index < pageEntries.length; index += 1) {
+      const { entry, app } = pageEntries[index];
+      const record = records[index];
       if (!record) {
         continue;
       }
-      await this.healCodeEntry(app.id, entry, record);
-      const batch = record.batch_id ? await this.store.readData<BatchRecord>(`batch/${record.batch_id}`) : null;
+      heals.push(this.healCodeEntry(app.id, entry, record));
+      const batch = record.batch_id === null ? null : batches.get(record.batch_id) ?? null;
       items.push(toCodeListItem(record, app, plansById.get(record.plan_id) ?? null, batch));
+    }
+    if (heals.length > 0) {
+      await Promise.all(heals);
     }
     return { items, total: filtered.length };
   }
@@ -1012,7 +1040,12 @@ export class BlobRepository {
       const ids = (await this.store.readData<{ ids: number[] }>(`appversions/${app.id}`))?.ids ?? [];
       const versions = await Promise.all(ids.map((id) => this.store.readData<VersionRow>(`version/${id}`)));
       for (const version of versions) {
-        if (version && !version.deleted_at && (!filters.status || version.status === filters.status)) {
+        if (
+          version &&
+          !version.deleted_at &&
+          (!filters.status || version.status === filters.status) &&
+          (!filters.version || version.version.includes(filters.version))
+        ) {
           collected.push(version);
         }
       }
@@ -1630,6 +1663,24 @@ export class BlobRepository {
 }
 
 // ---------- 纯函数工具 ----------
+
+/** 有并发上限的并行 map，用于把 N 次独立 Blob 读从「串行 N×延迟」压缩到「并发批次」 */
+async function mapWithConcurrency<T, R>(items: T[], limit: number, worker: (item: T, index: number) => Promise<R>): Promise<R[]> {
+  const results = new Array<R>(items.length);
+  let cursor = 0;
+  const runners = Array.from({ length: Math.max(1, Math.min(limit, items.length)) }, async () => {
+    for (;;) {
+      const index = cursor;
+      cursor += 1;
+      if (index >= items.length) {
+        return;
+      }
+      results[index] = await worker(items[index], index);
+    }
+  });
+  await Promise.all(runners);
+  return results;
+}
 
 function toCodeIndexEntry(record: CodeRecord): CodeIndexEntry {
   return {
