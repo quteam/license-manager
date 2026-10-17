@@ -10,7 +10,7 @@
 
 | EdgeOne Makers · 国际站 | EdgeOne Makers · 中国站 | Cloudflare Workers · 全球站 |
 | --- | --- | --- |
-| [![使用 EdgeOne 部署](https://cdnstatic.tencentcs.com/edgeone/pages/deploy.svg)](https://edgeone.ai/pages/new?project-name=license-manager&repository-url=https://github.com/Rain48698/license-manager&install-command=corepack%20pnpm%20install%20--frozen-lockfile&build-command=corepack%20pnpm%20--filter%20%40license-manager%2Fadmin%20run%20build%20%26%26%20node%20scripts%2Fbuild-edgeone.mjs&output-directory=admin/dist&env=JWT_SECRET) | [![使用 EdgeOne 部署](https://cdnstatic.tencentcs.com/edgeone/pages/deploy.svg)](https://console.cloud.tencent.com/edgeone/pages/new?project-name=license-manager&repository-url=https://github.com/Rain48698/license-manager&install-command=corepack%20pnpm%20install%20--frozen-lockfile&build-command=corepack%20pnpm%20--filter%20%40license-manager%2Fadmin%20run%20build%20%26%26%20node%20scripts%2Fbuild-edgeone.mjs&output-directory=admin/dist&env=JWT_SECRET) | [![Deploy to Cloudflare Workers](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/Rain48698/license-manager) |
+| [![使用 EdgeOne 部署](https://cdnstatic.tencentcs.com/edgeone/pages/deploy.svg)](https://edgeone.ai/pages/new?project-name=license-manager&repository-url=https://github.com/quteam/license-manager&install-command=corepack%20pnpm%20install%20--frozen-lockfile&build-command=corepack%20pnpm%20--filter%20%40license-manager%2Fadmin%20run%20build%20%26%26%20node%20scripts%2Fbuild-edgeone.mjs&output-directory=admin/dist&env=JWT_SECRET) | [![使用 EdgeOne 部署](https://cdnstatic.tencentcs.com/edgeone/pages/deploy.svg)](https://console.cloud.tencent.com/edgeone/pages/new?project-name=license-manager&repository-url=https://github.com/quteam/license-manager&install-command=corepack%20pnpm%20install%20--frozen-lockfile&build-command=corepack%20pnpm%20--filter%20%40license-manager%2Fadmin%20run%20build%20%26%26%20node%20scripts%2Fbuild-edgeone.mjs&output-directory=admin/dist&env=JWT_SECRET) | [![Deploy to Cloudflare Workers](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/quteam/license-manager) |
 
 > - 仓库为私有时仅协作者可完成授权部署；仓库公开后 Cloudflare 按钮对所有访客可用。
 > - **EdgeOne**：构建参数已预填，部署完成后需在项目设置补齐环境变量，详见 [docs/EDGEONE_DEPLOYMENT.md](docs/EDGEONE_DEPLOYMENT.md)。
@@ -25,7 +25,7 @@
 - **授权周期从真正使用时开始**：天卡、两天卡、三天卡、周卡、月卡、季卡、年卡、永久卡均从首次激活开始计算有效期，提前生成和分发激活码不会损耗客户授权时长。
 - **一码一机，兼顾换机体验**：默认绑定单一设备，同设备重复激活保持幂等；用户可在次数和冷却时间约束下自助解绑，管理员也可处理例外换机。
 - **多租户统一运营**：一套部署可隔离管理多个客户、团队或业务线；超级管理员管理租户并切换业务上下文，租户管理员只能访问所属租户数据。
-- **敏感凭证最小化存储**：应用密钥和设备指纹不落库，长期存储只保留 HMAC 结果或激活码后缀；本分支激活码明文直接入库（便于后台查询与补发），管理后台与分销取码接口均返回完整激活码。
+- **敏感凭证最小化存储**：应用密钥和设备指纹不落库，长期存储只保留 HMAC 结果或激活码后缀；激活码明文加密后入库，管理后台可解密展示完整激活码。
 - **授权运营可观察、可追溯**：仪表盘汇总应用、激活码、激活趋势和客户端失败；关键管理操作与客户端授权结果进入可筛选日志；删除激活码仍保留历史链路（软删除），也可物理强制删除。
 - **分销商自动发货**：第三方发货系统可通过取码接口按应用/套餐每次取走一张未售出卡密，自动发给买家；卡密状态完整流转（未激活 → 已售出 → 已激活），不会重复发放。
 - **从接口试用到客户端接入**：后台内置接口文档、调用流程、可复制示例、多框架 SDK/组件代码和真实 API Playground。
@@ -47,7 +47,7 @@
 - 客户端通过 `app_id`、`app_secret`、激活码和设备指纹完成激活与校验。
 - 需要"一码一机"，同时允许受控的自助换机。
 - 平台方统一管理多个客户或业务线，同时确保租户数据和管理权限隔离。
-- 希望在自托管的前提下，避免明文保存应用密钥和设备指纹；激活码明文入库，后台可随时查看与补发。
+- 希望在自托管的前提下，避免明文保存应用密钥和设备指纹；激活码明文加密后入库，后台可解密查看与补发。
 
 ---
 
@@ -269,19 +269,10 @@ pnpm deploy               # 构建并部署生产 Worker
 ├── migrations/   # Cloudflare D1 migration
 ├── worker/       # Cloudflare Workers + Hono API
 ├── AGENTS.md     # 编码 Agent 开发规范
-├── WORKFLOW.md   # 分支工作流规则
 └── pnpm-workspace.yaml
 ```
 
 请求流：`Browser/Admin -> Cloudflare Worker -> Hono routes -> service 业务规则 -> repository D1 查询 -> 统一 JSON 响应`；非 `/api/*` 请求由 Worker assets 回退到管理后台静态资源。
-
-## 工作流规则
-
-本仓库遵循 [WORKFLOW.md](WORKFLOW.md) 定义的分支工作流：
-
-- 所有修改一律在 `feature/custom-plans` 分支进行；
-- 该分支不得合并/推送到 `main`；
-- `main` 仅用于从 `upstream`（原作者仓库）拉取合并上游修改。
 
 ## 文档索引
 
@@ -428,13 +419,8 @@ pnpm deploy               # Build and deploy the production Worker
 ├── migrations/   # Cloudflare D1 migrations
 ├── worker/       # Cloudflare Workers + Hono API
 ├── AGENTS.md     # Coding agent development rules
-├── WORKFLOW.md   # Branch workflow policy
 └── pnpm-workspace.yaml
 ```
-
-## Workflow Policy
-
-This repository follows the branch workflow defined in [WORKFLOW.md](WORKFLOW.md): all changes are made on `feature/custom-plans`; that branch is never merged or pushed to `main`; `main` is used only to pull and merge upstream (`upstream`) changes.
 
 ## Documentation
 

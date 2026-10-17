@@ -37,7 +37,6 @@
 | 构建、部署、D1 远程迁移、Worker assets | `docs/DEPLOYMENT.md` | Wrangler 配置和部署脚本 |
 | 版本控制接口（版本 CRUD、发布/下架、强制更新、客户端查询） | `docs/API_VERSIONS.md` | `worker/src/routes.ts`、相关测试 |
 | 客户端接入提示词或接入文档同步 | `docs/INTEGRATION_PROMPT.md` | `docs/API.md`、`docs/API_VERSIONS.md` |
-| Fork 本地改动（自定义天卡/永久卡套餐等）与上游同步恢复 | `docs/CUSTOM_DAILY_LIFETIME_PLANS.md` | `migrations/`、`git log` |
 | 文档结构、开源入口或规则归档 | `docs/README.md` | 根目录文档 |
 | EdgeOne Makers 开发与部署（Cloud/Edge Functions、KV/Blob、middleware、CLI） | `pages-llms.mdc`、`.zcode/skills/edgeone-makers-tools/SKILL.md`、`docs/EDGEONE_DEPLOYMENT.md` | `.zcode/skills/edgeone-makers-tools/references/` 下对应子技能；双平台存储适配见 `worker/src/storage.ts`、`worker/src/blobstore/` |
 
@@ -105,7 +104,7 @@
 
 ## 不可破坏约束
 
-- 不保存或记录完整明文激活码。（本 feature/edgeone 分支按需求改为明文入库并在后台展示，分歧记录见 `docs/CUSTOM_DAILY_LIFETIME_PLANS.md`；日志消息、URL 与仓库文件仍不得出现明文激活码）
+- 不保存或记录完整明文激活码（日志消息、URL 与仓库文件均不得出现明文激活码）。
 - 不保存或记录应用密钥、设备指纹明文。
 - 激活码过期时间从首次激活时间计算。
 - 已解绑激活码重新绑定时不得重算授权起止时间。

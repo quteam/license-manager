@@ -11,8 +11,8 @@
 
 | 平台 | 按钮 |
 | --- | --- |
-| EdgeOne Makers · 国际站 | [![使用 EdgeOne 部署](https://cdnstatic.tencentcs.com/edgeone/pages/deploy.svg)](https://edgeone.ai/pages/new?project-name=license-manager&repository-url=https://github.com/Rain48698/license-manager&install-command=corepack%20pnpm%20install%20--frozen-lockfile&build-command=corepack%20pnpm%20--filter%20%40license-manager%2Fadmin%20run%20build%20%26%26%20node%20scripts%2Fbuild-edgeone.mjs&output-directory=admin/dist&env=JWT_SECRET) |
-| EdgeOne Makers · 中国站 | [![使用 EdgeOne 部署](https://cdnstatic.tencentcs.com/edgeone/pages/deploy.svg)](https://console.cloud.tencent.com/edgeone/pages/new?project-name=license-manager&repository-url=https://github.com/Rain48698/license-manager&install-command=corepack%20pnpm%20install%20--frozen-lockfile&build-command=corepack%20pnpm%20--filter%20%40license-manager%2Fadmin%20run%20build%20%26%26%20node%20scripts%2Fbuild-edgeone.mjs&output-directory=admin/dist&env=JWT_SECRET) |
+| EdgeOne Makers · 国际站 | [![使用 EdgeOne 部署](https://cdnstatic.tencentcs.com/edgeone/pages/deploy.svg)](https://edgeone.ai/pages/new?project-name=license-manager&repository-url=https://github.com/quteam/license-manager&install-command=corepack%20pnpm%20install%20--frozen-lockfile&build-command=corepack%20pnpm%20--filter%20%40license-manager%2Fadmin%20run%20build%20%26%26%20node%20scripts%2Fbuild-edgeone.mjs&output-directory=admin/dist&env=JWT_SECRET) |
+| EdgeOne Makers · 中国站 | [![使用 EdgeOne 部署](https://cdnstatic.tencentcs.com/edgeone/pages/deploy.svg)](https://console.cloud.tencent.com/edgeone/pages/new?project-name=license-manager&repository-url=https://github.com/quteam/license-manager&install-command=corepack%20pnpm%20install%20--frozen-lockfile&build-command=corepack%20pnpm%20--filter%20%40license-manager%2Fadmin%20run%20build%20%26%26%20node%20scripts%2Fbuild-edgeone.mjs&output-directory=admin/dist&env=JWT_SECRET) |
 
 部署按钮只预填了构建参数与第一个密钥，其余环境变量需要在部署完成后的项目设置中补齐（见下文）。Cloudflare 的对应按钮与两平台按钮总表见 [README](../README.md#一键部署) 与 [DEPLOYMENT.md](DEPLOYMENT.md)。
 
@@ -28,7 +28,7 @@
 | `DEVICE_HMAC_SECRET` | ✅ | 设备指纹 HMAC 哈希密钥 |
 | `ADMIN_BOOTSTRAP_USERNAME` | 可选 | bootstrap 超级管理员用户名，与密码成对配置 |
 | `ADMIN_BOOTSTRAP_PASSWORD` | 可选 | bootstrap 管理员密码兼管理员密码恢复密钥，首次登录自动创建 |
-| `CODE_PLAINTEXT_ENCRYPTION_KEY` | 可选 | 仅用于解密存量 AES-256-GCM 加密激活码；本分支新激活码明文直接入库，分销取码无需此密钥 |
+| `CODE_PLAINTEXT_ENCRYPTION_KEY` | ✅ | 激活码明文 AES-256-GCM 加密密钥（生成/取码/后台展示均需此密钥解密） |
 | `BLOB_NAMESPACE` | 可选 | Blob 命名空间名称，默认 `license-manager` |
 
 与 Cloudflare 部署的变量名完全一致；HMAC/AES 密钥一旦启用不可更换（否则已哈希数据无法匹配）。
@@ -102,4 +102,4 @@ pnpm deploy:edgeone -- -n <project> --json   # 透传参数给 edgeone makers de
 | 事务 | 无跨记录事务；管理员批量操作（删除应用/租户、物理删码）改为幂等多步操作，部分失败重试即完成 |
 | 容量 | Blob 免费额度约 1 GB（与 D1 免费额度量级相近，适合中小规模发码场景） |
 
-> 应用密钥与设备指纹仍只存 HMAC 结果；激活码按本分支需求明文入库（便于后台查询与补发），Blob 上同样遵循该约定。
+> 应用密钥与设备指纹只存 HMAC 结果；激活码明文经 `CODE_PLAINTEXT_ENCRYPTION_KEY` 加密后入库（与 Cloudflare/D1 部署语义一致），Blob 上同样遵循该约定。

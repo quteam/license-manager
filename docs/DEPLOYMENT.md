@@ -4,7 +4,7 @@
 
 ## 一键部署（Deploy to Cloudflare）
 
-README 顶部提供 [Deploy to Cloudflare](https://deploy.workers.cloudflare.com/?url=https://github.com/Rain48698/license-manager) 按钮，适合快速试用：
+README 顶部提供 [Deploy to Cloudflare](https://deploy.workers.cloudflare.com/?url=https://github.com/quteam/license-manager) 按钮，适合快速试用：
 
 - 按钮读取**仓库根目录**的 [wrangler.jsonc](../wrangler.jsonc)（它同时是本地开发的唯一 Wrangler 配置：入口、assets、D1 绑定、迁移目录均已预置，D1 会在向导中自动创建并回填 ID）；根目录 `.dev.vars.example` 定义了向导需要填写的密钥。修改入口、绑定或资源名称时，同步 `wrangler.jsonc` 与私有的 `worker/wrangler.production.toml` 两处。
 - 向导中构建命令保持默认（`pnpm run build`），**部署命令**改为 `npx wrangler d1 migrations apply license_manager --remote && npx wrangler deploy`（自动建库、执行迁移并发布）。
