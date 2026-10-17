@@ -14,11 +14,42 @@
     "test": "pnpm --filter @license-manager/worker test",
     "deploy": "pnpm build:production && pnpm --filter @license-manager/worker deploy",
     "db:migrate:local": "pnpm --filter @license-manager/worker db:migrate:local",
-    "db:migrate:remote": "pnpm --filter @license-manager/worker db:migrate:remote"
+    "db:migrate:remote": "pnpm --filter @license-manager/worker db:migrate:remote",
+    "build:edgeone": "pnpm --filter @license-manager/admin build && node scripts/build-edgeone.mjs",
+    "dev:edgeone": "edgeone makers dev",
+    "deploy:edgeone": "node scripts/deploy-edgeone.mjs"
   },
   "engines": {
-    "node": ">=20.11.0",
+    "node": ">=22.13.0",
     "pnpm": ">=11.7.0"
   },
-  "packageManager": "pnpm@11.7.0"
+  "packageManager": "pnpm@11.7.0",
+  "devDependencies": {
+    "esbuild": "^0.28.1"
+  },
+  "cloudflare": {
+    "bindings": {
+      "DB": {
+        "description": "D1 数据库绑定，一键部署时自动创建并回填 ID"
+      },
+      "JWT_SECRET": {
+        "description": "管理后台会话 JWT 签名密钥，建议 openssl rand -hex 32"
+      },
+      "CODE_HMAC_SECRET": {
+        "description": "激活码 HMAC 哈希密钥，启用后不可更换"
+      },
+      "APP_SECRET_HMAC_SECRET": {
+        "description": "应用密钥 HMAC 哈希密钥，启用后不可更换"
+      },
+      "DEVICE_HMAC_SECRET": {
+        "description": "设备指纹 HMAC 哈希密钥，启用后不可更换"
+      },
+      "ADMIN_BOOTSTRAP_PASSWORD": {
+        "description": "bootstrap 管理员密码兼密码恢复密钥，首次登录自动创建账号"
+      },
+      "CODE_PLAINTEXT_ENCRYPTION_KEY": {
+        "description": "可选：base64url 编码的 32 字节 AES-256-GCM 密钥，配置后分销取码可用"
+      }
+    }
+  }
 }

@@ -7,12 +7,16 @@ export function useCatalogs() {
   const [plans, setPlans] = useState<PlanItem[]>([]);
 
   const load = useCallback(async () => {
-    const [appData, planData] = await Promise.all([
-      apiRequest<{ items: AppItem[] }>("/api/admin/apps"),
-      apiRequest<{ items: PlanItem[] }>("/api/admin/plans")
-    ]);
-    setApps(appData.items);
-    setPlans(planData.items);
+    try {
+      const [appData, planData] = await Promise.all([
+        apiRequest<{ items: AppItem[] }>("/api/admin/apps"),
+        apiRequest<{ items: PlanItem[] }>("/api/admin/plans")
+      ]);
+      setApps(appData.items);
+      setPlans(planData.items);
+    } catch {
+      // 目录加载失败时保持空目录继续渲染，避免产生未处理的 Promise 拒绝
+    }
   }, []);
 
   useEffect(() => {

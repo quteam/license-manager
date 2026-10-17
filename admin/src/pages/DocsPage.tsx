@@ -107,10 +107,16 @@ export function DocsPage() {
                     <Typography.Text code>POST {action.path}</Typography.Text>
                   </Descriptions.Item>
                   <Descriptions.Item label={t("docs.commonParams")}>
-                    {action.value === "app-info" ? "app_id, app_secret" : "app_id, app_secret, code"}
+                    {action.value === "app-info"
+                      ? "app_id, app_secret"
+                      : action.value === "versions-latest"
+                        ? "app_id, app_secret, current_version_code"
+                        : "app_id, app_secret, code"}
                   </Descriptions.Item>
                   <Descriptions.Item label={t("docs.deviceParams")}>
-                    {action.value === "app-info" ? t("docs.noDeviceParams") : "device_fingerprint"}
+                    {action.value === "app-info" || action.value === "versions-latest"
+                      ? t("docs.noDeviceParams")
+                      : "device_fingerprint"}
                   </Descriptions.Item>
                 </Descriptions>
                 <FlowChart steps={clientActionFlows[action.value]} />

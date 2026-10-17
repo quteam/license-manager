@@ -3,7 +3,7 @@ import { ADMIN_ROLE, TENANT_STATUS } from "./constants";
 import { requireEnv } from "./config";
 import { verifyJwt } from "./crypto";
 import { fail } from "./http";
-import { Repository } from "./repository";
+import { createRepository } from "./storage";
 import { ApiError, Bindings, Variables } from "./types";
 
 export async function requireAdmin(c: Context<{ Bindings: Bindings; Variables: Variables }>, next: Next) {
@@ -16,7 +16,7 @@ export async function requireAdmin(c: Context<{ Bindings: Bindings; Variables: V
   if (!payload) {
     return c.json(fail("UNAUTHORIZED", "Invalid or expired token"), 401);
   }
-  const repo = new Repository(c.env.DB);
+  const repo = await createRepository(c.env);
   const admin = await repo.getAdminById(Number(payload.sub));
   if (!admin) {
     return c.json(fail("UNAUTHORIZED", "Admin no longer exists"), 401);
@@ -53,7 +53,7 @@ export async function resolveTenantId(c: Context<{ Bindings: Bindings; Variables
   if (!Number.isInteger(tenantId) || tenantId < 1) {
     throw new ApiError(400, "BAD_REQUEST", "X-Tenant-Id header is required");
   }
-  const tenant = await new Repository(c.env.DB).getTenantById(tenantId);
+  const tenant = await (await createRepository(c.env)).getTenantById(tenantId);
   if (!tenant) {
     throw new ApiError(404, "NOT_FOUND", "Tenant not found");
   }

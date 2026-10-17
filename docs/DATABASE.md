@@ -1,5 +1,7 @@
 # 数据库规范
 
+> 本文档描述 Cloudflare D1 数据库（schema 以 `migrations/` 为准）。EdgeOne Pages 部署不使用 D1：持久层为平台 Blob 文档模型，种子数据（默认租户 + 套餐）在 `worker/src/blobstore/seed.ts` 中与迁移保持同步，运行形态与语义差异见 [EDGEONE_DEPLOYMENT.md](EDGEONE_DEPLOYMENT.md)。修改套餐等种子数据时必须同时更新 `migrations/` 与 `blobstore/seed.ts` 两处。
+
 Cloudflare D1 是唯一持久化存储。Schema 只通过根目录 `migrations/` 演进；数据库现状等于按文件名顺序应用全部迁移后的结果，不能只看初始迁移或 TypeScript 类型推测。
 
 ## 当前迁移

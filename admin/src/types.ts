@@ -1,6 +1,6 @@
-import type { AppPlatform, AppStatus, CodeStatus, ErrorCode, LogAction, LogResult } from "./shared/constants";
+import type { AppPlatform, AppStatus, CodeStatus, ErrorCode, LogAction, LogResult, VersionStatus } from "./shared/constants";
 
-export type { AppPlatform, AppStatus, CodeBulkAction, CodeListStatus, CodeStatus, CodeToggleStatus, ErrorCode, LogAction, LogResult } from "./shared/constants";
+export type { AppPlatform, AppStatus, CodeBulkAction, CodeListStatus, CodeStatus, CodeToggleStatus, ErrorCode, LogAction, LogResult, VersionStatus } from "./shared/constants";
 
 export type ApiSuccess<T> = {
   ok: true;
@@ -57,6 +57,23 @@ export type PlanItem = {
   duration_days: number;
   sort_order: number;
   created_at: string;
+};
+
+export type VersionItem = {
+  id: number;
+  app_id: number;
+  app_public_id: string;
+  app_name: string;
+  version: string;
+  version_code: number;
+  release_notes: string;
+  download_url: string;
+  is_forced: number;
+  status: VersionStatus;
+  published_at: string | null;
+  created_by: number | null;
+  created_at: string;
+  updated_at: string;
 };
 
 export type CodeItem = {

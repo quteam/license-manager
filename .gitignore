@@ -12,3 +12,24 @@ coverage
 *.log
 
 .playwright-cli
+
+# 本地 MCP 配置，内含 EdgeOne API Token，不得提交
+.zcode/config.json
+
+# EdgeOne 本地工具链与 CLI 状态
+.zcode/
+edgeone-makers-tools-2.3.3/
+pages-llms.mdc
+.edgeone/
+
+# EdgeOne 云函数构建产物：必须提交入库。Git 导入部署时平台在克隆的仓库上构建，
+# 若目录被忽略，云端克隆后没有函数入口文件，CLI 判定 pure project，/api/* 全部 404。
+# 产物内容完全由 scripts/build-edgeone.mjs 决定，提交后需与源码保持同步重建。
+!cloud-functions/
+!cloud-functions/api
+!cloud-functions/api/[[default]].js
+
+# Tencent Cloud EdgeOne
+.env
+.edgeone/*
+.tef_dist/*

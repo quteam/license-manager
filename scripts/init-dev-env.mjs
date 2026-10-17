@@ -4,11 +4,11 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const rootDir = dirname(dirname(fileURLToPath(import.meta.url)));
-const envPath = join(rootDir, "worker", ".dev.vars");
+const envPath = join(rootDir, ".dev.vars");
 const force = process.argv.includes("--force");
 
 if (existsSync(envPath) && !force) {
-  console.error("worker/.dev.vars already exists. Use `pnpm env:init -- --force` to replace it.");
+  console.error(".dev.vars already exists. Use `pnpm env:init -- --force` to replace it.");
   process.exit(1);
 }
 
@@ -25,7 +25,7 @@ const contents = Object.entries(vars)
   .join("\n");
 
 writeFileSync(envPath, `${contents}\n`, { mode: 0o600 });
-console.log(`Generated ${envPath}`);
+console.log(`Generated ${envPath} (仓库根目录，wrangler dev 自动加载)`);
 
 function randomSecret() {
   return randomBytes(32).toString("hex");

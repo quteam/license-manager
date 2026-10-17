@@ -24,11 +24,12 @@ export type AdminRole = (typeof ADMIN_ROLE_VALUES)[number];
 
 export const CODE_STATUS = {
   UNUSED: "unused",
+  ISSUED: "issued",
   ACTIVE: "active",
   DELETED: "deleted"
 } as const;
 
-export const CODE_STATUS_VALUES = [CODE_STATUS.UNUSED, CODE_STATUS.ACTIVE, CODE_STATUS.DELETED] as const;
+export const CODE_STATUS_VALUES = [CODE_STATUS.UNUSED, CODE_STATUS.ISSUED, CODE_STATUS.ACTIVE, CODE_STATUS.DELETED] as const;
 export type CodeStatus = (typeof CODE_STATUS_VALUES)[number];
 
 export const CODE_DERIVED_STATUS = {
@@ -38,6 +39,7 @@ export const CODE_DERIVED_STATUS = {
 
 export const CODE_LIST_STATUS_VALUES = [
   CODE_STATUS.UNUSED,
+  CODE_STATUS.ISSUED,
   CODE_STATUS.ACTIVE,
   CODE_DERIVED_STATUS.DISABLED,
   CODE_STATUS.DELETED,
@@ -56,13 +58,15 @@ export type CodeToggleStatus = (typeof CODE_TOGGLE_STATUS_VALUES)[number];
 export const CODE_BULK_ACTION = {
   DELETE: "delete",
   ENABLE: "enable",
-  DISABLE: "disable"
+  DISABLE: "disable",
+  FORCE_DELETE: "force_delete"
 } as const;
 
 export const CODE_BULK_ACTION_VALUES = [
   CODE_BULK_ACTION.DELETE,
   CODE_BULK_ACTION.ENABLE,
-  CODE_BULK_ACTION.DISABLE
+  CODE_BULK_ACTION.DISABLE,
+  CODE_BULK_ACTION.FORCE_DELETE
 ] as const;
 export type CodeBulkAction = (typeof CODE_BULK_ACTION_VALUES)[number];
 
@@ -75,9 +79,16 @@ export const LOG_ACTION = {
   DELETE_CODE: "delete_code",
   DISABLE_CODE: "disable_code",
   ENABLE_CODE: "enable_code",
+  FORCE_DELETE_CODE: "force_delete_code",
   DISABLE_APP: "disable_app",
   ENABLE_APP: "enable_app",
-  ROTATE_APP_SECRET: "rotate_app_secret"
+  ROTATE_APP_SECRET: "rotate_app_secret",
+  CREATE_VERSION: "create_version",
+  UPDATE_VERSION: "update_version",
+  PUBLISH_VERSION: "publish_version",
+  UNPUBLISH_VERSION: "unpublish_version",
+  DELETE_VERSION: "delete_version",
+  CLAIM_CODE: "claim_code"
 } as const;
 
 export const LOG_ACTION_VALUES = [
@@ -89,9 +100,16 @@ export const LOG_ACTION_VALUES = [
   LOG_ACTION.DELETE_CODE,
   LOG_ACTION.DISABLE_CODE,
   LOG_ACTION.ENABLE_CODE,
+  LOG_ACTION.FORCE_DELETE_CODE,
   LOG_ACTION.DISABLE_APP,
   LOG_ACTION.ENABLE_APP,
-  LOG_ACTION.ROTATE_APP_SECRET
+  LOG_ACTION.ROTATE_APP_SECRET,
+  LOG_ACTION.CREATE_VERSION,
+  LOG_ACTION.UPDATE_VERSION,
+  LOG_ACTION.PUBLISH_VERSION,
+  LOG_ACTION.UNPUBLISH_VERSION,
+  LOG_ACTION.DELETE_VERSION,
+  LOG_ACTION.CLAIM_CODE
 ] as const;
 export type LogAction = (typeof LOG_ACTION_VALUES)[number];
 
@@ -104,6 +122,18 @@ export const LOG_RESULT_VALUES = [LOG_RESULT.SUCCESS, LOG_RESULT.FAILURE] as con
 export type LogResult = (typeof LOG_RESULT_VALUES)[number];
 
 export const MAX_CODE_BATCH_QUANTITY = 300;
+
+/** 批量发码备注长度上限（与前端输入框限制一致） */
+export const MAX_CODE_NOTE_LENGTH = 120;
+
+export const VERSION_STATUS = {
+  DRAFT: "draft",
+  PUBLISHED: "published",
+  ARCHIVED: "archived"
+} as const;
+
+export const VERSION_STATUS_VALUES = [VERSION_STATUS.DRAFT, VERSION_STATUS.PUBLISHED, VERSION_STATUS.ARCHIVED] as const;
+export type VersionStatus = (typeof VERSION_STATUS_VALUES)[number];
 
 export const ERROR_CODE = {
   BAD_REQUEST: "BAD_REQUEST",
@@ -119,7 +149,12 @@ export const ERROR_CODE = {
   DEVICE_MISMATCH: "DEVICE_MISMATCH",
   REBINDS_EXCEEDED: "REBINDS_EXCEEDED",
   REBINDS_TOO_FREQUENT: "REBINDS_TOO_FREQUENT",
-  CONFLICT: "CONFLICT"
+  CONFLICT: "CONFLICT",
+  VERSION_NOT_FOUND: "VERSION_NOT_FOUND",
+  VERSION_CODE_CONFLICT: "VERSION_CODE_CONFLICT",
+  VERSION_NOT_PUBLISHABLE: "VERSION_NOT_PUBLISHABLE",
+  NO_CODE_AVAILABLE: "NO_CODE_AVAILABLE",
+  ENCRYPTION_KEY_NOT_CONFIGURED: "ENCRYPTION_KEY_NOT_CONFIGURED"
 } as const;
 
 export const ERROR_CODE_VALUES = [
@@ -136,7 +171,12 @@ export const ERROR_CODE_VALUES = [
   ERROR_CODE.DEVICE_MISMATCH,
   ERROR_CODE.REBINDS_EXCEEDED,
   ERROR_CODE.REBINDS_TOO_FREQUENT,
-  ERROR_CODE.CONFLICT
+  ERROR_CODE.CONFLICT,
+  ERROR_CODE.VERSION_NOT_FOUND,
+  ERROR_CODE.VERSION_CODE_CONFLICT,
+  ERROR_CODE.VERSION_NOT_PUBLISHABLE,
+  ERROR_CODE.NO_CODE_AVAILABLE,
+  ERROR_CODE.ENCRYPTION_KEY_NOT_CONFIGURED
 ] as const;
 export type ErrorCode = (typeof ERROR_CODE_VALUES)[number];
 
@@ -158,6 +198,10 @@ export function isCodeToggleStatus(value: string): value is CodeToggleStatus {
 
 export function isCodeBulkAction(value: string): value is CodeBulkAction {
   return includesValue(CODE_BULK_ACTION_VALUES, value);
+}
+
+export function isVersionStatus(value: string): value is VersionStatus {
+  return includesValue(VERSION_STATUS_VALUES, value);
 }
 
 function includesValue<T extends string>(values: readonly T[], value: string): value is T {

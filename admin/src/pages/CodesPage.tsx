@@ -1,7 +1,7 @@
-import { DisconnectOutlined, CheckCircleOutlined, CloseOutlined, DeleteOutlined, StopOutlined } from "@ant-design/icons";
+import { DisconnectOutlined, CheckCircleOutlined, CloseOutlined, DeleteOutlined, StopOutlined, WarningOutlined } from "@ant-design/icons";
 import type { ActionType, ProColumns } from "@ant-design/pro-components";
 import { ProTable } from "@ant-design/pro-components";
-import { App as AntApp, Button, Space, Tag, Typography } from "antd";
+import { App as AntApp, Button, Collapse, Descriptions, Space, Tag, Typography } from "antd";
 import { useRef, useState } from "react";
 import { apiRequest, toQuery } from "../api";
 import { useCatalogs } from "../hooks/useCatalogs";
@@ -29,6 +29,7 @@ export function CodesPage() {
   const { t } = useI18n();
   const { apps, plans } = useCatalogs();
   const actionRef = useRef<ActionType | undefined>(undefined);
+  const dataRef = useRef<CodeItem[]>([]);
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
   const selectedCount = selectedRowKeys.length;
 
@@ -190,63 +191,83 @@ export function CodesPage() {
           >
             {t("common.delete")}
           </Button>
+          <Button
+            danger
+            size="small"
+            type="link"
+            icon={<WarningOutlined />}
+            aria-label={t("codes.forceDelete")}
+            onClick={() => confirmForceDeleteCode(row)}
+          >
+            {t("codes.forceDelete")}
+          </Button>
         </Space>
       )
     }
   ];
 
   return (
-    <ProTable<CodeItem>
-      rowKey="id"
-      actionRef={actionRef}
-      columns={columns}
-      cardBordered
-      bordered
-      scroll={{ x: 1620 }}
-      rowSelection={{
-        selectedRowKeys,
-        getCheckboxProps: (row) => ({ disabled: row.status === CODE_STATUS.DELETED }),
-        onChange: (keys) => setSelectedRowKeys(keys)
-      }}
-      search={{ labelWidth: 72, defaultCollapsed: false }}
-      options={{ density: true, fullScreen: true, reload: true, setting: true }}
-      pagination={{ defaultPageSize: 20, showSizeChanger: true }}
-      tableAlertRender={false}
-      tableAlertOptionRender={false}
-      toolBarRender={() => [
-        <Space key="selected-actions" size={8} wrap>
-          <Typography.Text type={selectedCount > 0 ? undefined : "secondary"}>{t("codes.selected", { count: selectedCount })}</Typography.Text>
-          <Button
-            size="small"
-            icon={<CheckCircleOutlined />}
-            disabled={selectedCount === 0}
-            onClick={() => bulkUpdateCodes(CODE_BULK_ACTION.ENABLE, selectedRowKeys)}
-          >
-            {t("codes.bulkEnable")}
-          </Button>
-          <Button
-            size="small"
-            icon={<StopOutlined />}
-            style={DISABLE_BUTTON_STYLE}
-            disabled={selectedCount === 0}
-            onClick={() => bulkUpdateCodes(CODE_BULK_ACTION.DISABLE, selectedRowKeys)}
-          >
-            {t("codes.bulkDisable")}
-          </Button>
-          <Button
-            danger
-            size="small"
-            icon={<DeleteOutlined />}
-            disabled={selectedCount === 0}
-            onClick={() => bulkUpdateCodes(CODE_BULK_ACTION.DELETE, selectedRowKeys)}
-          >
-            {t("codes.bulkDelete")}
-          </Button>
-          <Button size="small" icon={<CloseOutlined />} disabled={selectedCount === 0} onClick={() => setSelectedRowKeys([])}>
-            {t("codes.clearSelection")}
-          </Button>
-        </Space>
-      ]}
+    <>
+      <CodesGuide />
+      <ProTable<CodeItem>
+        rowKey="id"
+        actionRef={actionRef}
+        columns={columns}
+        cardBordered
+        bordered
+        scroll={{ x: 1620 }}
+        rowSelection={{
+          selectedRowKeys,
+          onChange: (keys) => setSelectedRowKeys(keys)
+        }}
+        search={{ labelWidth: 72, defaultCollapsed: false }}
+        options={{ density: true, fullScreen: true, reload: true, setting: true }}
+        pagination={{ defaultPageSize: 20, showSizeChanger: true }}
+        tableAlertRender={false}
+        tableAlertOptionRender={false}
+        toolBarRender={() => [
+          <Space key="selected-actions" size={8} wrap>
+            <Typography.Text type={selectedCount > 0 ? undefined : "secondary"}>{t("codes.selected", { count: selectedCount })}</Typography.Text>
+            <Button
+              size="small"
+              icon={<CheckCircleOutlined />}
+              disabled={selectedCount === 0}
+              onClick={() => bulkUpdateCodes(CODE_BULK_ACTION.ENABLE, selectedRowKeys)}
+            >
+              {t("codes.bulkEnable")}
+            </Button>
+            <Button
+              size="small"
+              icon={<StopOutlined />}
+              style={DISABLE_BUTTON_STYLE}
+              disabled={selectedCount === 0}
+              onClick={() => bulkUpdateCodes(CODE_BULK_ACTION.DISABLE, selectedRowKeys)}
+            >
+              {t("codes.bulkDisable")}
+            </Button>
+            <Button
+              danger
+              size="small"
+              icon={<DeleteOutlined />}
+              disabled={selectedCount === 0}
+              onClick={() => bulkUpdateCodes(CODE_BULK_ACTION.DELETE, selectedRowKeys)}
+            >
+              {t("codes.bulkDelete")}
+            </Button>
+            <Button
+              danger
+              size="small"
+              icon={<WarningOutlined />}
+              disabled={selectedCount === 0}
+              onClick={() => bulkUpdateCodes(CODE_BULK_ACTION.FORCE_DELETE, selectedRowKeys)}
+            >
+              {t("codes.bulkForceDelete")}
+            </Button>
+            <Button size="small" icon={<CloseOutlined />} disabled={selectedCount === 0} onClick={() => setSelectedRowKeys([])}>
+              {t("codes.clearSelection")}
+            </Button>
+          </Space>
+        ]}
       request={async (params) => {
         try {
           const data = await apiRequest<ListResponse<CodeItem>>(
@@ -259,13 +280,15 @@ export function CodesPage() {
               page_size: params.pageSize
             })}`
           );
+          dataRef.current = data.items;
           return { data: data.items, total: data.total, success: true };
         } catch (error) {
           message.error(error instanceof Error ? error.message : t("common.loadingFailed"));
           return { data: [], total: 0, success: false };
         }
       }}
-    />
+      />
+    </>
   );
 
   function bulkUpdateCodes(action: CodeBulkAction, keys: React.Key[]) {
@@ -273,35 +296,163 @@ export function CodesPage() {
       message.warning(t("codes.selectFirst"));
       return;
     }
-    const actionText =
-      action === CODE_BULK_ACTION.DELETE ? t("common.delete") : action === CODE_BULK_ACTION.DISABLE ? t("common.disable") : t("common.enable");
+    const actionText = getBulkActionText(action);
+    const isForceDelete = action === CODE_BULK_ACTION.FORCE_DELETE;
+    let effectiveKeys = keys;
+    if (!isForceDelete) {
+      const selectedRows = dataRef.current.filter((row) => keys.includes(row.id));
+      const nonDeleted = selectedRows.filter((row) => row.status !== CODE_STATUS.DELETED);
+      if (selectedRows.length > 0 && nonDeleted.length === 0) {
+        message.warning(t("codes.forceDeleteHint"));
+        return;
+      }
+      if (nonDeleted.length < keys.length) {
+        message.info(t("codes.skippedDeletedHint", { count: keys.length - nonDeleted.length }));
+      }
+      effectiveKeys = nonDeleted.map((row) => row.id);
+    }
+    const doConfirm = (final: boolean) => {
+      modal.confirm({
+        title: final ? t("codes.forceDeleteConfirmFinal") : t("codes.bulkTitle", { action: actionText }),
+        content: final
+          ? t("codes.forceDeleteConfirmFinalContent")
+          : isForceDelete
+            ? t("codes.bulkForceDeleteConfirm", { count: effectiveKeys.length })
+            : t("codes.bulkConfirm", { action: actionText, count: effectiveKeys.length }),
+        okText: actionText,
+        okButtonProps:
+          isForceDelete || action === CODE_BULK_ACTION.DELETE
+            ? { danger: true }
+            : action === CODE_BULK_ACTION.DISABLE
+              ? { style: DISABLE_CONFIRM_BUTTON_STYLE }
+              : undefined,
+        cancelText: t("common.cancel"),
+        onOk: async () => {
+          if (isForceDelete && !final) {
+            doConfirm(true);
+            return;
+          }
+          const result = await apiRequest<{ action: string; requested: number; updated: number }>("/api/admin/codes/bulk", {
+            method: "POST",
+            body: JSON.stringify({
+              action,
+              ids: effectiveKeys.map((key) => Number(key))
+            })
+          });
+          message.success(t("codes.bulkSucceeded", { action: actionText, count: result.updated }));
+          setSelectedRowKeys([]);
+          actionRef.current?.reload();
+        }
+      });
+    };
+    doConfirm(false);
+  }
+
+  function confirmForceDeleteCode(row: CodeItem) {
     modal.confirm({
-      title: t("codes.bulkTitle", { action: actionText }),
-      content: t("codes.bulkConfirm", { action: actionText, count: keys.length }),
-      okText: actionText,
-      okButtonProps:
-        action === CODE_BULK_ACTION.DELETE
-          ? { danger: true }
-          : action === CODE_BULK_ACTION.DISABLE
-            ? { style: DISABLE_CONFIRM_BUTTON_STYLE }
-            : undefined,
+      title: t("codes.forceDelete"),
+      content: t("codes.forceDeleteConfirm", { suffix: row.code_suffix }),
+      okText: t("codes.forceDelete"),
+      okButtonProps: { danger: true },
       cancelText: t("common.cancel"),
-      onOk: async () => {
-        const result = await apiRequest<{ action: string; requested: number; updated: number }>("/api/admin/codes/bulk", {
-          method: "POST",
-          body: JSON.stringify({
-            action,
-            ids: keys.map((key) => Number(key))
-          })
+      onOk: () => {
+        modal.confirm({
+          title: t("codes.forceDeleteConfirmFinal"),
+          content: t("codes.forceDeleteConfirmFinalContent"),
+          okText: t("codes.forceDelete"),
+          okButtonProps: { danger: true },
+          cancelText: t("common.cancel"),
+          onOk: async () => {
+            await apiRequest(`/api/admin/codes/${row.id}/force`, { method: "DELETE" });
+            message.success(t("codes.forceDeleteSucceeded"));
+            actionRef.current?.reload();
+          }
         });
-        message.success(t("codes.bulkSucceeded", { action: actionText, count: result.updated }));
-        setSelectedRowKeys([]);
-        actionRef.current?.reload();
       }
     });
+  }
+
+  function getBulkActionText(action: CodeBulkAction) {
+    return action === CODE_BULK_ACTION.FORCE_DELETE
+      ? t("codes.forceDelete")
+      : action === CODE_BULK_ACTION.DELETE
+        ? t("common.delete")
+        : action === CODE_BULK_ACTION.DISABLE
+          ? t("common.disable")
+          : t("common.enable");
   }
 }
 
 function canManuallyUnbind(row: CodeItem) {
   return row.status === CODE_STATUS.ACTIVE && !row.disabled_at && !isExpired(row.expires_at) && Boolean(row.device_hash);
+}
+
+function CodesGuide() {
+  const { t } = useI18n();
+  const { Paragraph, Text } = Typography;
+  return (
+    <Collapse
+      ghost
+      style={{ marginBottom: 16 }}
+      defaultActiveKey={["status", "dist"]}
+      items={[
+        {
+          key: "status",
+          label: <Text strong>{t("codes.guideStatusTitle")}</Text>,
+          children: (
+            <div>
+              <Paragraph type="secondary">{t("codes.guideStatusIntro")}</Paragraph>
+              <ul style={{ paddingLeft: 20, marginBottom: 0 }}>
+                <li>{t("codes.guideStatusUnused")}</li>
+                <li>{t("codes.guideStatusIssued")}</li>
+                <li>{t("codes.guideStatusActive")}</li>
+                <li>{t("codes.guideStatusDisabled")}</li>
+                <li>{t("codes.guideStatusDeleted")}</li>
+              </ul>
+            </div>
+          )
+        },
+        {
+          key: "dist",
+          label: <Text strong>{t("codes.guideDistTitle")}</Text>,
+          children: (
+            <div>
+              <Paragraph type="secondary">{t("codes.guideDistIntro")}</Paragraph>
+              <Paragraph>
+                <Text strong>{t("codes.guideDistStep1")}</Text> {t("codes.guideDistStep1Desc")}
+              </Paragraph>
+              <Paragraph>
+                <Text strong>{t("codes.guideDistStep2")}</Text> {t("codes.guideDistStep2Desc")}
+              </Paragraph>
+              <Paragraph>
+                <Text strong>{t("codes.guideDistStep3")}</Text> {t("codes.guideDistStep3Desc")}
+              </Paragraph>
+              <Descriptions bordered size="small" column={1} style={{ maxWidth: 760 }}>
+                <Descriptions.Item label={t("codes.guideDistApiUrl")}>
+                  <Text code copyable>
+                    {`GET ${window.location.origin}/api/distributor/claim?app_id=app_xxx&plan_code=monthly`}
+                  </Text>
+                </Descriptions.Item>
+                <Descriptions.Item label={t("codes.guideDistHeaders")}>
+                  <Text code copyable>
+                    {`{"Authorization": "Bearer <app_secret>"}`}
+                  </Text>
+                </Descriptions.Item>
+                <Descriptions.Item label={t("codes.guideDistRespField")}>
+                  <Text code>code</Text>
+                </Descriptions.Item>
+              </Descriptions>
+              <Paragraph style={{ marginTop: 12 }}>
+                <Text strong>{t("codes.guideDistPlans")}：</Text>
+                {t("codes.guideDistPlansDesc")}
+              </Paragraph>
+              <Paragraph type="secondary" style={{ marginBottom: 0 }}>
+                {t("codes.guideDistFlow")}
+              </Paragraph>
+            </div>
+          )
+        }
+      ]}
+    />
+  );
 }

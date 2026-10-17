@@ -7,18 +7,23 @@ import {
   CODE_STATUS,
   LOG_ACTION,
   LOG_RESULT,
+  MAX_CODE_NOTE_LENGTH,
   TENANT_STATUS,
+  VERSION_STATUS,
   type AppStatus,
   type CodeBulkAction,
   type LogAction,
-  type TenantStatus
+  type TenantStatus,
+  type VersionStatus
 } from "./constants";
-import { codeSuffix, generateActivationCode, generateRandomToken, hashPassword, hmacSha256, normalizeCode, timingSafeEqual, verifyPassword } from "./crypto";
+import { codeSuffix, decryptPlaintext, encryptPlaintext, generateActivationCode, generateRandomToken, hashPassword, hmacSha256, normalizeCode, timingSafeEqual, verifyPassword } from "./crypto";
 import { Repository } from "./repository";
-import { ApiError, AppRow, Bindings, CodeDetailRow } from "./types";
+import { ApiError, AppRow, Bindings, ClientLatestVersion, CodeDetailRow, VersionRow } from "./types";
 
 export const MAX_REBINDS = 3;
 export const REBIND_COOLDOWN_MS = 24 * 60 * 60 * 1000;
+/** 分销取码并发被抢先时的最大尝试次数 */
+export const MAX_CLAIM_ATTEMPTS = 3;
 const READ_ONLY_ADMIN_USERNAME = "test";
 
 export class LicenseService {
@@ -295,13 +300,179 @@ export class LicenseService {
     if (!app) {
       throw new ApiError(404, "NOT_FOUND", "App not found");
     }
-    const deleted = await this.repo.deleteAppIfUnreferenced(app.id);
+    const deleted = await this.repo.deleteAppWithData(app.id);
     if (!deleted) {
-      throw new ApiError(409, "CONFLICT", "App has activation data and cannot be deleted");
+      throw new ApiError(409, "CONFLICT", "App still has non-deleted activation codes and cannot be deleted");
     }
     return {
       deleted: true
     };
+  }
+
+  async listVersions(input: { tenantId: number; appId?: string; version?: string; status?: VersionStatus; page: number; pageSize: number }) {
+    return await this.repo.listVersions(input);
+  }
+
+  async createVersion(input: {
+    tenantId: number;
+    appId: string;
+    version: string;
+    versionCode: number;
+    releaseNotes: string;
+    downloadUrl?: string;
+    isForced: boolean;
+    adminId: number;
+  }) {
+    const app = await this.repo.getAppByPublicId(input.appId, input.tenantId);
+    if (!app) {
+      throw new ApiError(404, "NOT_FOUND", "App not found");
+    }
+    const existing = await this.repo.getVersionByAppAndCode(app.id, input.versionCode);
+    if (existing) {
+      throw new ApiError(409, "VERSION_CODE_CONFLICT", "Version code already exists for this app");
+    }
+    const version = await this.repo.createVersion({
+      appDbId: app.id,
+      version: input.version,
+      versionCode: input.versionCode,
+      releaseNotes: input.releaseNotes,
+      downloadUrl: input.downloadUrl,
+      isForced: input.isForced,
+      createdBy: input.adminId
+    });
+    await this.repo.insertLog({
+      appDbId: app.id,
+      action: LOG_ACTION.CREATE_VERSION,
+      result: LOG_RESULT.SUCCESS,
+      message: `创建版本 ${version.version} (${version.version_code})，管理员 ID：${input.adminId}`
+    });
+    return {
+      version
+    };
+  }
+
+  async updateVersion(input: {
+    tenantId: number;
+    versionId: number;
+    version?: string;
+    versionCode?: number;
+    releaseNotes?: string;
+    downloadUrl?: string;
+    isForced?: boolean;
+    adminId: number;
+  }) {
+    const version = await this.requireTenantVersion(input.versionId, input.tenantId);
+    const merged = {
+      versionId: version.id,
+      version: input.version ?? version.version,
+      versionCode: input.versionCode ?? version.version_code,
+      releaseNotes: input.releaseNotes ?? version.release_notes,
+      downloadUrl: input.downloadUrl ?? version.download_url,
+      isForced: input.isForced ?? version.is_forced === 1
+    };
+    if (merged.versionCode !== version.version_code) {
+      const existing = await this.repo.getVersionByAppAndCode(version.app_id, merged.versionCode);
+      if (existing) {
+        throw new ApiError(409, "VERSION_CODE_CONFLICT", "Version code already exists for this app");
+      }
+    }
+    const updated = await this.repo.updateVersion(merged);
+    if (!updated) {
+      throw new ApiError(404, "VERSION_NOT_FOUND", "Version not found");
+    }
+    await this.repo.insertLog({
+      appDbId: version.app_id,
+      action: LOG_ACTION.UPDATE_VERSION,
+      result: LOG_RESULT.SUCCESS,
+      message: `修改版本 ${updated.version} (${updated.version_code})，管理员 ID：${input.adminId}`
+    });
+    return {
+      version: updated
+    };
+  }
+
+  async publishVersion(input: { tenantId: number; versionId: number; adminId: number }) {
+    const version = await this.requireTenantVersion(input.versionId, input.tenantId);
+    if (version.status !== VERSION_STATUS.DRAFT) {
+      throw new ApiError(400, "VERSION_NOT_PUBLISHABLE", "Only draft versions can be published");
+    }
+    const published = await this.repo.publishVersion(version.id, new Date().toISOString());
+    if (!published) {
+      throw new ApiError(400, "VERSION_NOT_PUBLISHABLE", "Version cannot be published");
+    }
+    await this.repo.insertLog({
+      appDbId: version.app_id,
+      action: LOG_ACTION.PUBLISH_VERSION,
+      result: LOG_RESULT.SUCCESS,
+      message: `发布版本 ${version.version} (${version.version_code})，管理员 ID：${input.adminId}`
+    });
+    return {
+      updated: true
+    };
+  }
+
+  async unpublishVersion(input: { tenantId: number; versionId: number; adminId: number }) {
+    const version = await this.requireTenantVersion(input.versionId, input.tenantId);
+    if (version.status !== VERSION_STATUS.PUBLISHED) {
+      throw new ApiError(400, "VERSION_NOT_PUBLISHABLE", "Only published versions can be unpublished");
+    }
+    const unpublished = await this.repo.unpublishVersion(version.id);
+    if (!unpublished) {
+      throw new ApiError(400, "VERSION_NOT_PUBLISHABLE", "Version cannot be unpublished");
+    }
+    await this.repo.insertLog({
+      appDbId: version.app_id,
+      action: LOG_ACTION.UNPUBLISH_VERSION,
+      result: LOG_RESULT.SUCCESS,
+      message: `下架版本 ${version.version} (${version.version_code})，管理员 ID：${input.adminId}`
+    });
+    return {
+      updated: true
+    };
+  }
+
+  async deleteVersion(input: { tenantId: number; versionId: number; adminId: number }) {
+    const version = await this.requireTenantVersion(input.versionId, input.tenantId);
+    const deleted = await this.repo.softDeleteVersion(version.id);
+    if (!deleted) {
+      throw new ApiError(404, "VERSION_NOT_FOUND", "Version not found");
+    }
+    await this.repo.insertLog({
+      appDbId: version.app_id,
+      action: LOG_ACTION.DELETE_VERSION,
+      result: LOG_RESULT.SUCCESS,
+      message: `删除版本 ${version.version} (${version.version_code})，管理员 ID：${input.adminId}`
+    });
+    return {
+      deleted: true
+    };
+  }
+
+  async getClientLatestVersion(input: { appId: string; appSecret: string; currentVersionCode?: number }) {
+    const app = await this.requireValidClientApp(input.appId, input.appSecret);
+    const latest = await this.repo.getLatestPublishedVersion(app.id);
+    if (!latest) {
+      return {
+        latest: null,
+        update_required: false
+      };
+    }
+    const updateRequired = input.currentVersionCode !== undefined && input.currentVersionCode < latest.version_code;
+    return {
+      latest: toClientVersion(latest),
+      update_required: updateRequired
+    };
+  }
+
+  private async requireTenantVersion(versionId: number, tenantId: number): Promise<VersionRow & { tenant_id: number }> {
+    const version = await this.repo.getVersionWithTenant(versionId);
+    if (!version) {
+      throw new ApiError(404, "VERSION_NOT_FOUND", "Version not found");
+    }
+    if (version.tenant_id !== tenantId) {
+      throw new ApiError(404, "VERSION_NOT_FOUND", "Version not found");
+    }
+    return version;
   }
 
   async generateCodes(input: {
@@ -315,6 +486,9 @@ export class LicenseService {
     const app = await this.repo.getAppByPublicId(input.appId, input.tenantId);
     if (!app) {
       throw new ApiError(404, "NOT_FOUND", "App not found");
+    }
+    if (input.note && input.note.length > MAX_CODE_NOTE_LENGTH) {
+      throw new ApiError(400, "BAD_REQUEST", `note must be at most ${MAX_CODE_NOTE_LENGTH} characters`);
     }
     const plan = await this.repo.getPlanByCode(input.planCode);
     if (!plan) {
@@ -331,6 +505,7 @@ export class LicenseService {
     const codes: string[] = [];
     const pending: Parameters<Repository["createActivationCodes"]>[0] = [];
     const generatedHashes = new Set<string>();
+    const encryptionKey = this.env.CODE_PLAINTEXT_ENCRYPTION_KEY;
     let attempts = 0;
     while (codes.length < input.quantity) {
       attempts += 1;
@@ -350,7 +525,8 @@ export class LicenseService {
         planId: plan.id,
         codeHash,
         codeSuffix: codeSuffix(normalized),
-        createdBy: input.adminId
+        createdBy: input.adminId,
+        codePlaintextEncrypted: encryptionKey ? await encryptPlaintext(normalized, encryptionKey) : null
       });
       codes.push(code);
     }
@@ -453,7 +629,51 @@ export class LicenseService {
 
   async getClientAppInfo(input: { appId: string; appSecret: string }) {
     const app = await this.requireValidClientApp(input.appId, input.appSecret);
-    return toClientAppInfo(app);
+    const latest = await this.repo.getLatestPublishedVersion(app.id);
+    return {
+      ...toClientAppInfo(app),
+      latest_version: latest ? toClientVersion(latest) : null
+    };
+  }
+
+  /**
+   * 分销商取码：从指定应用（可限定套餐）原子取走一张未售出激活码，返回明文。
+   * 复用 app_secret 鉴权（与客户端一致），取走后状态置为 issued（已售出），用户仍可正常激活。
+   */
+  async claimNextCode(input: { appId: string; appSecret: string; planCode?: string }) {
+    const app = await this.requireValidClientApp(input.appId, input.appSecret);
+    const encryptionKey = this.env.CODE_PLAINTEXT_ENCRYPTION_KEY;
+    if (!encryptionKey) {
+      throw new ApiError(500, "ENCRYPTION_KEY_NOT_CONFIGURED", "CODE_PLAINTEXT_ENCRYPTION_KEY is not configured");
+    }
+    // 并发下可能被其他请求抢先取走同一张码，仓库层返回 null 时重试下一张（最多 3 次）
+    let claimed = null;
+    for (let attempt = 1; attempt <= MAX_CLAIM_ATTEMPTS; attempt += 1) {
+      claimed = await this.repo.claimNextCode({
+        appDbId: app.id,
+        tenantId: app.tenant_id,
+        planCode: input.planCode
+      });
+      if (claimed) {
+        break;
+      }
+    }
+    if (!claimed) {
+      throw new ApiError(404, "NO_CODE_AVAILABLE", "No unused activation code available");
+    }
+    const code = await decryptPlaintext(claimed.encrypted, encryptionKey);
+    await this.repo.insertLog({
+      codeId: claimed.codeId,
+      appDbId: app.id,
+      action: LOG_ACTION.CLAIM_CODE,
+      result: LOG_RESULT.SUCCESS,
+      message: `分销取码（${claimed.planCode} ${claimed.planName}），尾号 ${claimed.codeSuffix}`
+    });
+    return {
+      code,
+      code_suffix: claimed.codeSuffix,
+      plan_code: claimed.planCode
+    };
   }
 
   async verify(input: { appId: string; appSecret: string; code: string; deviceFingerprint: string }) {
@@ -544,6 +764,26 @@ export class LicenseService {
     });
   }
 
+  async forceDeleteCode(codeId: number, adminId: number, tenantId: number) {
+    const code = await this.repo.getCodeById(codeId, tenantId);
+    if (!code) {
+      throw new ApiError(404, "NOT_FOUND", "Activation code not found");
+    }
+    const deleted = await this.repo.hardDeleteCode(codeId, tenantId);
+    if (!deleted) {
+      throw new ApiError(404, "NOT_FOUND", "Activation code not found");
+    }
+    await this.repo.insertLog({
+      appDbId: code.app_id,
+      action: LOG_ACTION.FORCE_DELETE_CODE,
+      result: LOG_RESULT.SUCCESS,
+      message: `强制删除激活码，管理员 ID：${adminId}`
+    });
+    return {
+      deleted: true
+    };
+  }
+
   async updateCodeDisabled(input: { codeId: number; tenantId: number; disabled: boolean; adminId: number }) {
     const changedAt = nowIso();
     const updated = await this.repo.updateCodeDisabled({
@@ -589,6 +829,24 @@ export class LicenseService {
   async bulkUpdateCodes(input: { codeIds: number[]; tenantId: number; action: CodeBulkAction; adminId: number }) {
     let updated = 0;
     for (const codeId of input.codeIds) {
+      if (input.action === CODE_BULK_ACTION.FORCE_DELETE) {
+        const code = await this.repo.getCodeById(codeId, input.tenantId);
+        if (!code) {
+          continue;
+        }
+        const changed = await this.repo.hardDeleteCode(codeId, input.tenantId);
+        if (!changed) {
+          continue;
+        }
+        updated += 1;
+        await this.repo.insertLog({
+          appDbId: code.app_id,
+          action: LOG_ACTION.FORCE_DELETE_CODE,
+          result: LOG_RESULT.SUCCESS,
+          message: `强制删除激活码，管理员 ID：${input.adminId}`
+        });
+        continue;
+      }
       const changed = await this.updateCodeByBulkAction(codeId, input.action, input.tenantId);
       if (!changed) {
         continue;
@@ -705,6 +963,8 @@ export class LicenseService {
 
   private calculateExpiresAt(activatedAt: string, code: CodeDetailRow): string {
     switch (code.plan_code) {
+      case "lifetime":
+        return "2099-12-31T23:59:59.000Z";
       case "monthly":
         return addMonthsIso(activatedAt, 1);
       case "quarterly":
@@ -773,6 +1033,17 @@ function toClientAppInfo(app: AppRow) {
     purchase_url: app.purchase_url,
     platform: app.platform,
     status: app.status
+  };
+}
+
+function toClientVersion(version: VersionRow): ClientLatestVersion {
+  return {
+    version: version.version,
+    version_code: version.version_code,
+    release_notes: version.release_notes,
+    download_url: version.download_url,
+    is_forced: version.is_forced === 1,
+    published_at: version.published_at
   };
 }
 

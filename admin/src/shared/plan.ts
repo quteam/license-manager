@@ -7,6 +7,8 @@ export function formatPlanDuration(plan: PlanLike, t?: Translate): string {
   const code = "code" in plan ? plan.code : plan.plan_code;
 
   switch (code) {
+    case "lifetime":
+      return t ? t("planDuration.lifetime") : "激活后长期有效";
     case "monthly":
       return t ? t("planDuration.monthly") : "激活后 1 个自然月";
     case "quarterly":

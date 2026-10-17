@@ -26,7 +26,7 @@ describe("repository SQL helpers", () => {
     );
 
     expect(statement.sql.match(/INSERT INTO activation_codes/g)).toHaveLength(1);
-    expect(statement.sql.match(/\(\?, \?, \?, \?, \?, 'unused', NULL, NULL, NULL, \?, \?\)/g)).toHaveLength(2);
+    expect(statement.sql.match(/\(\?, \?, \?, \?, \?, 'unused', NULL, NULL, NULL, \?, \?, \?\)/g)).toHaveLength(2);
     expect(statement.bindings).toEqual([
       1,
       2,
@@ -35,13 +35,15 @@ describe("repository SQL helpers", () => {
       "SUFFA",
       4,
       "2026-06-25T00:00:00.000Z",
+      null,
       1,
       2,
       3,
       "hash-b",
       "SUFFB",
       4,
-      "2026-06-25T00:00:00.000Z"
+      "2026-06-25T00:00:00.000Z",
+      null
     ]);
   });
 

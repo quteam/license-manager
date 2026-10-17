@@ -17,11 +17,12 @@ export function getAppStatusValueEnum(t: Translate) {
 
 export const CODE_STATUS = {
   UNUSED: "unused",
+  ISSUED: "issued",
   ACTIVE: "active",
   DELETED: "deleted"
 } as const;
 
-export const CODE_STATUS_VALUES = [CODE_STATUS.UNUSED, CODE_STATUS.ACTIVE, CODE_STATUS.DELETED] as const;
+export const CODE_STATUS_VALUES = [CODE_STATUS.UNUSED, CODE_STATUS.ISSUED, CODE_STATUS.ACTIVE, CODE_STATUS.DELETED] as const;
 export type CodeStatus = (typeof CODE_STATUS_VALUES)[number];
 
 export const CODE_DERIVED_STATUS = {
@@ -31,6 +32,7 @@ export const CODE_DERIVED_STATUS = {
 
 export const CODE_LIST_STATUS_VALUES = [
   CODE_STATUS.UNUSED,
+  CODE_STATUS.ISSUED,
   CODE_STATUS.ACTIVE,
   CODE_DERIVED_STATUS.DISABLED,
   CODE_DERIVED_STATUS.EXPIRED,
@@ -41,6 +43,7 @@ export type CodeListStatus = (typeof CODE_LIST_STATUS_VALUES)[number];
 export function getCodeListStatusValueEnum(t: Translate) {
   return {
     [CODE_STATUS.UNUSED]: { text: t("status.unused") },
+    [CODE_STATUS.ISSUED]: { text: t("status.issued") },
     [CODE_STATUS.ACTIVE]: { text: t("status.active") },
     [CODE_DERIVED_STATUS.DISABLED]: { text: t("status.codeDisabled") },
     [CODE_DERIVED_STATUS.EXPIRED]: { text: t("status.expired") },
@@ -59,13 +62,15 @@ export type CodeToggleStatus = (typeof CODE_TOGGLE_STATUS_VALUES)[number];
 export const CODE_BULK_ACTION = {
   DELETE: "delete",
   ENABLE: "enable",
-  DISABLE: "disable"
+  DISABLE: "disable",
+  FORCE_DELETE: "force_delete"
 } as const;
 
 export const CODE_BULK_ACTION_VALUES = [
   CODE_BULK_ACTION.DELETE,
   CODE_BULK_ACTION.ENABLE,
-  CODE_BULK_ACTION.DISABLE
+  CODE_BULK_ACTION.DISABLE,
+  CODE_BULK_ACTION.FORCE_DELETE
 ] as const;
 export type CodeBulkAction = (typeof CODE_BULK_ACTION_VALUES)[number];
 
@@ -78,9 +83,16 @@ export const LOG_ACTION = {
   DELETE_CODE: "delete_code",
   DISABLE_CODE: "disable_code",
   ENABLE_CODE: "enable_code",
+  FORCE_DELETE_CODE: "force_delete_code",
   DISABLE_APP: "disable_app",
   ENABLE_APP: "enable_app",
-  ROTATE_APP_SECRET: "rotate_app_secret"
+  ROTATE_APP_SECRET: "rotate_app_secret",
+  CREATE_VERSION: "create_version",
+  UPDATE_VERSION: "update_version",
+  PUBLISH_VERSION: "publish_version",
+  UNPUBLISH_VERSION: "unpublish_version",
+  DELETE_VERSION: "delete_version",
+  CLAIM_CODE: "claim_code"
 } as const;
 
 export function getLogActionValueEnum(t: Translate) {
@@ -93,13 +105,37 @@ export function getLogActionValueEnum(t: Translate) {
     [LOG_ACTION.DELETE_CODE]: { text: t("logs.deleteCode") },
     [LOG_ACTION.DISABLE_CODE]: { text: t("logs.disableCode") },
     [LOG_ACTION.ENABLE_CODE]: { text: t("logs.enableCode") },
+    [LOG_ACTION.FORCE_DELETE_CODE]: { text: t("logs.forceDeleteCode") },
     [LOG_ACTION.DISABLE_APP]: { text: t("logs.disableApp") },
     [LOG_ACTION.ENABLE_APP]: { text: t("logs.enableApp") },
-    [LOG_ACTION.ROTATE_APP_SECRET]: { text: t("logs.rotateAppSecret") }
+    [LOG_ACTION.ROTATE_APP_SECRET]: { text: t("logs.rotateAppSecret") },
+    [LOG_ACTION.CREATE_VERSION]: { text: t("logs.createVersion") },
+    [LOG_ACTION.UPDATE_VERSION]: { text: t("logs.updateVersion") },
+    [LOG_ACTION.PUBLISH_VERSION]: { text: t("logs.publishVersion") },
+    [LOG_ACTION.UNPUBLISH_VERSION]: { text: t("logs.unpublishVersion") },
+    [LOG_ACTION.DELETE_VERSION]: { text: t("logs.deleteVersion") },
+    [LOG_ACTION.CLAIM_CODE]: { text: t("logs.claimCode") }
   } as const;
 }
 
 export type LogAction = (typeof LOG_ACTION)[keyof typeof LOG_ACTION];
+
+export const VERSION_STATUS = {
+  DRAFT: "draft",
+  PUBLISHED: "published",
+  ARCHIVED: "archived"
+} as const;
+
+export const VERSION_STATUS_VALUES = [VERSION_STATUS.DRAFT, VERSION_STATUS.PUBLISHED, VERSION_STATUS.ARCHIVED] as const;
+export type VersionStatus = (typeof VERSION_STATUS_VALUES)[number];
+
+export function getVersionStatusValueEnum(t: Translate) {
+  return {
+    [VERSION_STATUS.DRAFT]: { text: t("versions.statusDraft"), status: "Default" },
+    [VERSION_STATUS.PUBLISHED]: { text: t("versions.statusPublished"), status: "Success" },
+    [VERSION_STATUS.ARCHIVED]: { text: t("versions.statusArchived"), status: "Warning" }
+  } as const;
+}
 
 export const LOG_RESULT = {
   SUCCESS: "success",

@@ -10,12 +10,13 @@ import {
   isCodeBulkAction,
   isCodeListStatus,
   isCodeToggleStatus,
-  isTenantStatus
+  isTenantStatus,
+  isVersionStatus
 } from "./constants";
 import { signJwt } from "./crypto";
 import { ok, optionalHttpUrl, optionalString, readJson, requireInteger, requireString } from "./http";
 import { requireAdmin, requireSuperAdmin, resolveTenantId } from "./middleware";
-import { Repository } from "./repository";
+import { createRepository } from "./storage";
 import { LicenseService } from "./service";
 import { ApiError, Bindings, Variables } from "./types";
 
@@ -34,7 +35,7 @@ export function createApi() {
     const tenant = requireString(body.tenant, "tenant");
     const username = requireString(body.username, "username");
     const password = requireString(body.password, "password");
-    const repo = new Repository(c.env.DB);
+    const repo = await createRepository(c.env);
     const service = new LicenseService(repo, c.env);
     const admin = await service.authenticateAdmin(tenant, username, password);
     const token = await signJwt(requireEnv(c.env, "JWT_SECRET"), { sub: String(admin.id), username: admin.username }, 8 * 60 * 60);
@@ -46,7 +47,7 @@ export function createApi() {
     const username = requireString(body.username, "username");
     const recoveryPassword = requireString(body.recovery_password, "recovery_password");
     const newPassword = requireString(body.new_password, "new_password");
-    const repo = new Repository(c.env.DB);
+    const repo = await createRepository(c.env);
     const service = new LicenseService(repo, c.env);
     const result = await service.resetAdminPassword({
       username,
@@ -62,7 +63,7 @@ export function createApi() {
 
   api.get("/admin/tenants", async (c) => {
     requireSuperAdmin(c);
-    const repo = new Repository(c.env.DB);
+    const repo = await createRepository(c.env);
     return c.json(ok({ items: await repo.listTenants() }));
   });
 
@@ -73,7 +74,7 @@ export function createApi() {
     if (!isTenantStatus(status)) {
       throw new ApiError(400, "BAD_REQUEST", "status must be active or disabled");
     }
-    const service = new LicenseService(new Repository(c.env.DB), c.env);
+    const service = new LicenseService(await createRepository(c.env), c.env);
     const result = await service.createTenant({
       name: requireString(body.name, "name"),
       slug: requireString(body.slug, "slug"),
@@ -87,7 +88,7 @@ export function createApi() {
   api.patch("/admin/tenants/:id", async (c) => {
     requireSuperAdmin(c);
     const body = await readJson(c.req.raw);
-    const service = new LicenseService(new Repository(c.env.DB), c.env);
+    const service = new LicenseService(await createRepository(c.env), c.env);
     return c.json(ok(await service.updateTenant({
       tenantId: requireInteger(c.req.param("id"), "id", { min: 1 }),
       name: requireString(body.name, "name"),
@@ -102,14 +103,14 @@ export function createApi() {
     if (!isTenantStatus(status)) {
       throw new ApiError(400, "BAD_REQUEST", "status must be active or disabled");
     }
-    const service = new LicenseService(new Repository(c.env.DB), c.env);
+    const service = new LicenseService(await createRepository(c.env), c.env);
     return c.json(ok(await service.updateTenantStatus(requireInteger(c.req.param("id"), "id", { min: 1 }), status)));
   });
 
   api.patch("/admin/tenants/:id/admin-password", async (c) => {
     requireSuperAdmin(c);
     const body = await readJson(c.req.raw);
-    const service = new LicenseService(new Repository(c.env.DB), c.env);
+    const service = new LicenseService(await createRepository(c.env), c.env);
     return c.json(ok(await service.resetTenantAdminPassword({
       tenantId: requireInteger(c.req.param("id"), "id", { min: 1 }),
       username: requireString(body.username, "username"),
@@ -119,12 +120,12 @@ export function createApi() {
 
   api.delete("/admin/tenants/:id", async (c) => {
     requireSuperAdmin(c);
-    const service = new LicenseService(new Repository(c.env.DB), c.env);
+    const service = new LicenseService(await createRepository(c.env), c.env);
     return c.json(ok(await service.deleteTenant(requireInteger(c.req.param("id"), "id", { min: 1 }))));
   });
 
   api.get("/admin/dashboard", async (c) => {
-    const repo = new Repository(c.env.DB);
+    const repo = await createRepository(c.env);
     return c.json(ok(await repo.getDashboardStats(await resolveTenantId(c))));
   });
 
@@ -132,7 +133,7 @@ export function createApi() {
     const body = await readJson(c.req.raw);
     const currentPassword = requireString(body.current_password, "current_password");
     const newPassword = requireString(body.new_password, "new_password");
-    const repo = new Repository(c.env.DB);
+    const repo = await createRepository(c.env);
     const service = new LicenseService(repo, c.env);
     const result = await service.changeAdminPassword({
       adminId: c.get("admin").id,
@@ -143,12 +144,12 @@ export function createApi() {
   });
 
   api.get("/admin/plans", async (c) => {
-    const repo = new Repository(c.env.DB);
+    const repo = await createRepository(c.env);
     return c.json(ok({ items: await repo.getPlans() }));
   });
 
   api.get("/admin/apps", async (c) => {
-    const repo = new Repository(c.env.DB);
+    const repo = await createRepository(c.env);
     return c.json(ok({ items: await repo.listApps(await resolveTenantId(c)) }));
   });
 
@@ -159,7 +160,7 @@ export function createApi() {
     const purchaseUrl = optionalHttpUrl(body.purchase_url, "purchase_url");
     const platform = requireString(body.platform, "platform");
     const status = optionalString(body.status) === APP_STATUS.DISABLED ? APP_STATUS.DISABLED : APP_STATUS.ACTIVE;
-    const repo = new Repository(c.env.DB);
+    const repo = await createRepository(c.env);
     const service = new LicenseService(repo, c.env);
     const app = await service.createApp({ tenantId: await resolveTenantId(c), name, description, purchaseUrl, platform, status });
     return c.json(ok(app), 201);
@@ -171,7 +172,7 @@ export function createApi() {
     const description = optionalString(body.description);
     const purchaseUrl = optionalHttpUrl(body.purchase_url, "purchase_url");
     const platform = requireString(body.platform, "platform");
-    const repo = new Repository(c.env.DB);
+    const repo = await createRepository(c.env);
     const service = new LicenseService(repo, c.env);
     const app = await service.updateApp({ tenantId: await resolveTenantId(c), appId: c.req.param("appId"), name, description, purchaseUrl, platform });
     return c.json(ok(app));
@@ -183,7 +184,7 @@ export function createApi() {
     if (!isAppStatus(status)) {
       throw new ApiError(400, "BAD_REQUEST", "status must be active or disabled");
     }
-    const repo = new Repository(c.env.DB);
+    const repo = await createRepository(c.env);
     const service = new LicenseService(repo, c.env);
     const result = await service.updateAppStatus({
       appId: c.req.param("appId"),
@@ -195,7 +196,7 @@ export function createApi() {
   });
 
   api.patch("/admin/apps/:appId/secret", async (c) => {
-    const repo = new Repository(c.env.DB);
+    const repo = await createRepository(c.env);
     const service = new LicenseService(repo, c.env);
     const result = await service.rotateAppSecret({
       appId: c.req.param("appId"),
@@ -206,9 +207,101 @@ export function createApi() {
   });
 
   api.delete("/admin/apps/:appId", async (c) => {
-    const repo = new Repository(c.env.DB);
+    const repo = await createRepository(c.env);
     const service = new LicenseService(repo, c.env);
     const result = await service.deleteApp(c.req.param("appId"), await resolveTenantId(c));
+    return c.json(ok(result));
+  });
+
+  api.get("/admin/versions", async (c) => {
+    const repo = await createRepository(c.env);
+    const service = new LicenseService(repo, c.env);
+    const page = requireInteger(c.req.query("page") ?? 1, "page", { min: 1 });
+    const pageSize = requireInteger(c.req.query("page_size") ?? 20, "page_size", { min: 1, max: 100 });
+    const status = c.req.query("status");
+    const normalizedStatus = status && isVersionStatus(status) ? status : undefined;
+    if (status && !normalizedStatus) {
+      throw new ApiError(400, "BAD_REQUEST", "Invalid status filter");
+    }
+    const result = await service.listVersions({
+      tenantId: await resolveTenantId(c),
+      appId: c.req.query("app_id") || undefined,
+      version: c.req.query("version")?.trim() || undefined,
+      status: normalizedStatus,
+      page,
+      pageSize
+    });
+    return c.json(ok(result));
+  });
+
+  api.post("/admin/versions", async (c) => {
+    const body = await readJson(c.req.raw);
+    const service = new LicenseService(await createRepository(c.env), c.env);
+    const result = await service.createVersion({
+      tenantId: await resolveTenantId(c),
+      appId: requireString(body.app_id, "app_id"),
+      version: requireString(body.version, "version"),
+      versionCode: requireInteger(body.version_code, "version_code", { min: 1 }),
+      releaseNotes: optionalString(body.release_notes) ?? "",
+      downloadUrl: optionalHttpUrl(body.download_url, "download_url"),
+      isForced: body.is_forced === true,
+      adminId: c.get("admin").id
+    });
+    return c.json(ok(result), 201);
+  });
+
+  api.patch("/admin/versions/:id", async (c) => {
+    const body = await readJson(c.req.raw);
+    const service = new LicenseService(await createRepository(c.env), c.env);
+    const versionCode =
+      body.version_code === undefined || body.version_code === null
+        ? undefined
+        : requireInteger(body.version_code, "version_code", { min: 1 });
+    const downloadUrl =
+      body.download_url === undefined || body.download_url === null
+        ? undefined
+        : optionalHttpUrl(body.download_url, "download_url");
+    const isForced = body.is_forced === undefined ? undefined : body.is_forced === true;
+    const result = await service.updateVersion({
+      tenantId: await resolveTenantId(c),
+      versionId: requireInteger(c.req.param("id"), "id", { min: 1 }),
+      version: optionalString(body.version),
+      versionCode,
+      releaseNotes: optionalString(body.release_notes),
+      downloadUrl,
+      isForced,
+      adminId: c.get("admin").id
+    });
+    return c.json(ok(result));
+  });
+
+  api.post("/admin/versions/:id/publish", async (c) => {
+    const service = new LicenseService(await createRepository(c.env), c.env);
+    const result = await service.publishVersion({
+      tenantId: await resolveTenantId(c),
+      versionId: requireInteger(c.req.param("id"), "id", { min: 1 }),
+      adminId: c.get("admin").id
+    });
+    return c.json(ok(result));
+  });
+
+  api.post("/admin/versions/:id/unpublish", async (c) => {
+    const service = new LicenseService(await createRepository(c.env), c.env);
+    const result = await service.unpublishVersion({
+      tenantId: await resolveTenantId(c),
+      versionId: requireInteger(c.req.param("id"), "id", { min: 1 }),
+      adminId: c.get("admin").id
+    });
+    return c.json(ok(result));
+  });
+
+  api.delete("/admin/versions/:id", async (c) => {
+    const service = new LicenseService(await createRepository(c.env), c.env);
+    const result = await service.deleteVersion({
+      tenantId: await resolveTenantId(c),
+      versionId: requireInteger(c.req.param("id"), "id", { min: 1 }),
+      adminId: c.get("admin").id
+    });
     return c.json(ok(result));
   });
 
@@ -218,7 +311,7 @@ export function createApi() {
     const planCode = requireString(body.plan_code, "plan_code");
     const quantity = requireInteger(body.quantity, "quantity", { min: 1, max: MAX_CODE_BATCH_QUANTITY });
     const note = optionalString(body.note);
-    const repo = new Repository(c.env.DB);
+    const repo = await createRepository(c.env);
     const service = new LicenseService(repo, c.env);
     const result = await service.generateCodes({
       appId,
@@ -232,7 +325,7 @@ export function createApi() {
   });
 
   api.get("/admin/codes", async (c) => {
-    const repo = new Repository(c.env.DB);
+    const repo = await createRepository(c.env);
     const page = requireInteger(c.req.query("page") ?? 1, "page", { min: 1 });
     const pageSize = requireInteger(c.req.query("page_size") ?? 20, "page_size", { min: 1, max: 100 });
     const status = c.req.query("status");
@@ -259,7 +352,7 @@ export function createApi() {
     if (!isCodeToggleStatus(status)) {
       throw new ApiError(400, "BAD_REQUEST", "status must be enabled or disabled");
     }
-    const repo = new Repository(c.env.DB);
+    const repo = await createRepository(c.env);
     const service = new LicenseService(repo, c.env);
     const result = await service.updateCodeDisabled({
       codeId: id,
@@ -272,7 +365,7 @@ export function createApi() {
 
   api.patch("/admin/codes/:id/unbind-device", async (c) => {
     const id = requireInteger(c.req.param("id"), "id", { min: 1 });
-    const repo = new Repository(c.env.DB);
+    const repo = await createRepository(c.env);
     const service = new LicenseService(repo, c.env);
     const result = await service.manuallyUnbindDevice({
       codeId: id,
@@ -286,10 +379,10 @@ export function createApi() {
     const body = await readJson(c.req.raw);
     const action = requireString(body.action, "action");
     if (!isCodeBulkAction(action)) {
-      throw new ApiError(400, "BAD_REQUEST", "action must be delete, enable or disable");
+      throw new ApiError(400, "BAD_REQUEST", "action must be delete, enable, disable or force_delete");
     }
     const ids = requireIntegerArray(body.ids, "ids", { min: 1, max: 100 });
-    const repo = new Repository(c.env.DB);
+    const repo = await createRepository(c.env);
     const service = new LicenseService(repo, c.env);
     const result = await service.bulkUpdateCodes({
       codeIds: ids,
@@ -302,14 +395,22 @@ export function createApi() {
 
   api.delete("/admin/codes/:id", async (c) => {
     const id = requireInteger(c.req.param("id"), "id", { min: 1 });
-    const repo = new Repository(c.env.DB);
+    const repo = await createRepository(c.env);
     const service = new LicenseService(repo, c.env);
     await service.deleteCode(id, c.get("admin").id, await resolveTenantId(c));
     return c.json(ok({ deleted: true }));
   });
 
+  api.delete("/admin/codes/:id/force", async (c) => {
+    const id = requireInteger(c.req.param("id"), "id", { min: 1 });
+    const repo = await createRepository(c.env);
+    const service = new LicenseService(repo, c.env);
+    const result = await service.forceDeleteCode(id, c.get("admin").id, await resolveTenantId(c));
+    return c.json(ok(result));
+  });
+
   api.get("/admin/logs", async (c) => {
-    const repo = new Repository(c.env.DB);
+    const repo = await createRepository(c.env);
     const page = requireInteger(c.req.query("page") ?? 1, "page", { min: 1 });
     const pageSize = requireInteger(c.req.query("page_size") ?? 20, "page_size", { min: 1, max: 100 });
     const result = await repo.listLogs({
@@ -325,7 +426,7 @@ export function createApi() {
 
   api.post("/client/activate", async (c) => {
     const body = await readJson(c.req.raw);
-    const repo = new Repository(c.env.DB);
+    const repo = await createRepository(c.env);
     const service = new LicenseService(repo, c.env);
     const result = await service.activate({
       appId: requireString(body.app_id, "app_id"),
@@ -338,7 +439,7 @@ export function createApi() {
 
   api.post("/client/app-info", async (c) => {
     const body = await readJson(c.req.raw);
-    const repo = new Repository(c.env.DB);
+    const repo = await createRepository(c.env);
     const service = new LicenseService(repo, c.env);
     const result = await service.getClientAppInfo({
       appId: requireString(body.app_id, "app_id"),
@@ -347,9 +448,41 @@ export function createApi() {
     return c.json(ok(result));
   });
 
+  // 分销商取码：GET + Bearer app_secret 鉴权，供第三方自动发货系统调用
+  // ?app_id=app_xxx[&plan_code=monthly]
+  api.get("/distributor/claim", async (c) => {
+    const appId = requireString(c.req.query("app_id"), "app_id");
+    const planCode = c.req.query("plan_code")?.trim() || undefined;
+    const auth = c.req.header("authorization") ?? "";
+    const appSecret = auth.startsWith("Bearer ") ? auth.slice("Bearer ".length).trim() : "";
+    if (!appSecret) {
+      throw new ApiError(401, "UNAUTHORIZED", "Missing bearer token");
+    }
+    const repo = await createRepository(c.env);
+    const service = new LicenseService(repo, c.env);
+    const result = await service.claimNextCode({ appId, appSecret, planCode });
+    return c.json(ok(result));
+  });
+
+  api.post("/client/versions/latest", async (c) => {
+    const body = await readJson(c.req.raw);
+    const repo = await createRepository(c.env);
+    const service = new LicenseService(repo, c.env);
+    const currentVersionCode =
+      body.current_version_code === undefined || body.current_version_code === null
+        ? undefined
+        : requireInteger(body.current_version_code, "current_version_code", { min: 1 });
+    const result = await service.getClientLatestVersion({
+      appId: requireString(body.app_id, "app_id"),
+      appSecret: requireString(body.app_secret, "app_secret"),
+      currentVersionCode
+    });
+    return c.json(ok(result));
+  });
+
   api.post("/client/verify", async (c) => {
     const body = await readJson(c.req.raw);
-    const repo = new Repository(c.env.DB);
+    const repo = await createRepository(c.env);
     const service = new LicenseService(repo, c.env);
     const result = await service.verify({
       appId: requireString(body.app_id, "app_id"),
@@ -362,7 +495,7 @@ export function createApi() {
 
   api.post("/client/unbind-device", async (c) => {
     const body = await readJson(c.req.raw);
-    const repo = new Repository(c.env.DB);
+    const repo = await createRepository(c.env);
     const service = new LicenseService(repo, c.env);
     const result = await service.unbindDevice({
       appId: requireString(body.app_id, "app_id"),

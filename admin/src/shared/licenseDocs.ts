@@ -1,4 +1,4 @@
-export type ClientAction = "app-info" | "activate" | "verify" | "unbind";
+export type ClientAction = "app-info" | "activate" | "verify" | "unbind" | "versions-latest";
 
 export type ClientActionMeta = {
   value: ClientAction;
@@ -39,6 +39,12 @@ export function getClientActions(t: Translate): ClientActionMeta[] {
     label: t("docs.actionUnbind"),
     path: "/api/client/unbind-device",
     description: t("docs.actionUnbindDesc")
+  },
+  {
+    value: "versions-latest",
+    label: t("docs.actionVersionsLatest"),
+    path: "/api/client/versions/latest",
+    description: t("docs.actionVersionsLatestDesc")
   }
   ];
 }
@@ -71,6 +77,11 @@ export function getClientActionFlows(t: Translate): Record<ClientAction, ClientF
     { title: t("docs.verifyUnbind"), detail: t("docs.verifyUnbindDesc") },
     { title: t("docs.clearBinding"), detail: t("docs.clearBindingDesc") },
     { title: t("docs.activateNewDevice"), detail: t("docs.activateNewDeviceDesc") }
+  ],
+  "versions-latest": [
+    { title: t("docs.submitClient"), detail: t("docs.submitClientVersion") },
+    { title: t("docs.verifyApp"), detail: t("docs.verifyAppDesc") },
+    { title: t("docs.returnLatestVersion"), detail: t("docs.returnLatestVersionDesc") }
   ]
 };
 }
@@ -110,12 +121,18 @@ export function createRequestPayload(action: ClientAction, appId: string, t?: Tr
           app_id: appId,
           app_secret: secretPlaceholder
         }
-      : {
-          app_id: appId,
-          app_secret: secretPlaceholder,
-          code: "LM-XXXXX-XXXXX-XXXXX-XXXXX",
-          device_fingerprint: "stable-device-id"
-        };
+      : action === "versions-latest"
+        ? {
+            app_id: appId,
+            app_secret: secretPlaceholder,
+            current_version_code: 120
+          }
+        : {
+            app_id: appId,
+            app_secret: secretPlaceholder,
+            code: "LM-XXXXX-XXXXX-XXXXX-XXXXX",
+            device_fingerprint: "stable-device-id"
+          };
   return JSON.stringify(body, null, 2);
 }
 

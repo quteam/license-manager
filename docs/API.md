@@ -112,8 +112,9 @@
 | `GET /api/admin/codes` | 激活码列表 | 只读分页 |
 | `PATCH /api/admin/codes/:id/status` | 启用/禁用激活码 | 写激活码和日志 |
 | `PATCH /api/admin/codes/:id/unbind-device` | 管理员手动解绑 | 写激活码和日志 |
-| `POST /api/admin/codes/bulk` | 批量删除/启用/禁用 | 写激活码和日志 |
+| `POST /api/admin/codes/bulk` | 批量删除/启用/禁用/强制删除 | 写激活码和日志 |
 | `DELETE /api/admin/codes/:id` | 软删除激活码 | 写激活码和日志 |
+| `DELETE /api/admin/codes/:id/force` | 强制删除激活码（物理删除） | 写日志，断开日志关联 |
 | `GET /api/admin/logs` | 操作日志 | 只读分页 |
 | `POST /api/client/app-info` | 获取应用公开信息 | 只读 |
 | `POST /api/client/activate` | 首次激活或重绑 | 可能写激活码和日志 |
@@ -367,7 +368,7 @@
 
 `DELETE /api/admin/apps/:appId`
 
-仅无激活码、生成批次或操作日志引用的应用可删除。已有授权数据的应用返回 `CONFLICT`。
+仅当该应用下所有激活码均处于 `deleted` 状态时可删除。删除会**彻底移除**该应用及其关联的激活码、生成批次、版本和操作日志，不可恢复。仍存在未删除激活码的应用返回 `CONFLICT`。
 
 ### 生成激活码
 
@@ -385,6 +386,7 @@
 约束：
 
 - `quantity` 范围为 1 到 300。
+- `note` 最长 120 字符。
 - 返回的 `codes` 是明文激活码，只在本次响应中出现。
 
 ### 激活码列表
@@ -436,6 +438,12 @@
 
 删除为软删除。
 
+### 强制删除激活码
+
+`DELETE /api/admin/codes/:id/force`
+
+从数据库中**彻底删除**该激活码（物理删除），不可恢复。删除时该激活码关联的操作日志会断开（`code_id` 置空），并新增一条 `force_delete_code` 操作日志。此操作不可撤销，调用方必须二次确认。
+
 ### 手动解绑设备
 
 `PATCH /api/admin/codes/:id/unbind-device`
@@ -456,6 +464,7 @@
 `action` 支持：
 
 - `delete`：批量软删除。
+- `force_delete`：批量强制删除（物理删除，不可恢复；调用方必须二次确认）。
 - `disable`：批量禁用。
 - `enable`：批量启用。
 
@@ -493,6 +502,43 @@
 - `rotate_app_secret`：更换应用密钥
 
 ## 客户端接口
+
+### 分销商取码（自动发货）
+
+供第三方自动发货系统（如闲鱼自动发货）调用，从指定应用的指定套餐中取走一张未售出激活码并返回明文。**每次调用返回一张，取走后该激活码状态变为 `issued`（已售出），用户仍可正常激活（激活后变为 `active`），不会重复发放。**
+
+`GET /api/distributor/claim?app_id=app_xxx&plan_code=monthly`
+
+鉴权：请求头 `Authorization: Bearer <app_secret>`（与应用密钥相同）。
+
+请求参数：
+
+| 参数 | 必填 | 说明 |
+|---|---|---|
+| `app_id` | 是 | 应用 ID（`app_xxx`） |
+| `plan_code` | 否 | 套餐代码（如 `monthly`）。不传则从该应用所有未售出激活码中取最早一张 |
+
+成功响应：
+
+```json
+{
+  "ok": true,
+  "data": {
+    "code": "LM-XXXXX-XXXXX-XXXXX-XXXXX",
+    "code_suffix": "E2838",
+    "plan_code": "monthly"
+  }
+}
+```
+
+错误响应（HTTP 状态码非 200）：
+
+- `401 INVALID_APP_SECRET`：应用密钥不匹配
+- `403 APP_DISABLED`：应用或租户被禁用
+- `404 NO_CODE_AVAILABLE`：没有可用的未售出激活码（可定时重试，建议每隔几秒调用一次）
+- `500 ENCRYPTION_KEY_NOT_CONFIGURED`：系统未配置明文加密密钥（需联系管理员）
+
+注意：激活码明文仅在生成时加密存储，**旧代码（未启用加密前生成的激活码）无法被分销接口取走**，请重新生成一批激活码后用于分销。
 
 客户端请求中的 `app_secret`、`code` 和 `device_fingerprint` 只能放在 JSON 请求体中，不得放入 URL、查询参数或日志。
 

@@ -98,7 +98,7 @@ export function Shell({ admin, onLogout }: ShellProps) {
         setTenants(items);
         const activeItems = items.filter((item) => item.status === "active");
         const current = getTenantId();
-        const next = activeItems.some((item) => item.id === current) ? current : (activeItems[0]?.id ?? null);
+        const next = activeItems.some((item) => item.id === current) ? current : pickFallbackTenantId(activeItems);
         if (next) {
           persistTenantId(next);
         }
@@ -231,4 +231,17 @@ export function Shell({ admin, onLogout }: ShellProps) {
       />
     </>
   );
+}
+
+/**
+ * 超管没有有效租户上下文时的兜底选择。
+ * 租户列表按 created_at DESC 返回（最新在前），直接取第一项会让新建租户"顶掉"主租户，
+ * 表现为管理员看不到自己原来的激活码/版本；因此优先默认租户，其次取创建最早的租户。
+ */
+function pickFallbackTenantId(activeItems: TenantItem[]): number | null {
+  if (activeItems.length === 0) {
+    return null;
+  }
+  const preferred = activeItems.find((item) => item.slug === "default");
+  return (preferred ?? activeItems[activeItems.length - 1]).id;
 }

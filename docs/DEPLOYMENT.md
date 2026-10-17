@@ -1,5 +1,17 @@
 # 部署指南
 
+> 本文档描述 Cloudflare Workers + D1 生产部署。EdgeOne Pages（Node 云函数 + Blob 存储）部署见 [EDGEONE_DEPLOYMENT.md](EDGEONE_DEPLOYMENT.md)，两种形态可独立选择。
+
+## 一键部署（Deploy to Cloudflare）
+
+README 顶部提供 [Deploy to Cloudflare](https://deploy.workers.cloudflare.com/?url=https://github.com/quteam/license-manager) 按钮，适合快速试用：
+
+- 按钮读取**仓库根目录**的 [wrangler.jsonc](../wrangler.jsonc)（它同时是本地开发的唯一 Wrangler 配置：入口、assets、D1 绑定、迁移目录均已预置，D1 会在向导中自动创建并回填 ID）；根目录 `.dev.vars.example` 定义了向导需要填写的密钥。修改入口、绑定或资源名称时，同步 `wrangler.jsonc` 与私有的 `worker/wrangler.production.toml` 两处。
+- 向导中构建命令保持默认（`pnpm run build`），**部署命令**改为 `npx wrangler d1 migrations apply license_manager --remote && npx wrangler deploy`（自动建库、执行迁移并发布）。
+- 仓库为私有时仅协作者可完成授权；公开后按钮对所有访客可用。
+- 自定义域名、生产密钥轮换等仍建议走本文档的手动生产流程（按钮部署与手动部署互不影响，均以 `wrangler` 配置为准）。
+
+
 部署目标为 Cloudflare Workers + D1 + Worker assets。
 
 ## 创建 D1 数据库
@@ -10,7 +22,7 @@ pnpm --filter @license-manager/worker db:create
 
 将返回的 `database_id` 写入本地私有生产配置 `worker/wrangler.production.toml` 的 `[[env.production.d1_databases]]`。
 
-公开提交的 `worker/wrangler.toml` 仅用于本地开发，顶层 `[[d1_databases]]` 保持占位值即可；线上部署和远程迁移统一通过 `worker/wrangler.production.toml` 的 `env.production` 读取生产 D1 绑定。
+根目录 `wrangler.jsonc` 用于本地开发与一键部署，D1 `database_id` 保持占位值即可；线上部署和远程迁移统一通过 `worker/wrangler.production.toml` 的 `env.production` 读取生产 D1 绑定。
 
 ## 创建私有生产配置
 
@@ -57,8 +69,17 @@ pnpm wrangler secret put JWT_SECRET --config wrangler.production.toml --env prod
 pnpm wrangler secret put CODE_HMAC_SECRET --config wrangler.production.toml --env production
 pnpm wrangler secret put APP_SECRET_HMAC_SECRET --config wrangler.production.toml --env production
 pnpm wrangler secret put DEVICE_HMAC_SECRET --config wrangler.production.toml --env production
+pnpm wrangler secret put CODE_PLAINTEXT_ENCRYPTION_KEY --config wrangler.production.toml --env production
 pnpm wrangler secret put ADMIN_BOOTSTRAP_PASSWORD --config wrangler.production.toml --env production
 ```
+
+`CODE_PLAINTEXT_ENCRYPTION_KEY` 用于加密激活码明文（分销商取码功能），必须是 **base64url 编码的 32 字节密钥**（AES-256-GCM）。生成方式：
+
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"
+```
+
+未配置该密钥时：生成激活码不会写入明文，分销取码接口返回 `ENCRYPTION_KEY_NOT_CONFIGURED`，普通激活/校验不受影响。密钥轮换会使已加密明文无法解密，如非必要不要更换。
 
 生产环境还应确认：
 

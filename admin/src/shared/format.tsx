@@ -23,6 +23,9 @@ export function statusTag(code: CodeItem, t?: Translate) {
   if (code.status === CODE_STATUS.UNUSED) {
     return <Tag color="blue">{t ? t("status.unused") : "未激活"}</Tag>;
   }
+  if (code.status === CODE_STATUS.ISSUED) {
+    return <Tag color="gold">{t ? t("status.issued") : "已售出"}</Tag>;
+  }
   if (isExpired(code.expires_at)) {
     return <Tag color="red">{t ? t("status.expired") : "已过期"}</Tag>;
   }

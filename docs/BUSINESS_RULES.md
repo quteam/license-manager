@@ -8,9 +8,10 @@
 
 - 多应用、多平台授权管理。
 - 应用创建、编辑、启用/禁用、密钥更换和受限删除。
-- 激活码批量生成、查询、筛选、禁用/启用和软删除。
-- 周卡、月卡、季卡、年卡四类内置套餐。
+- 激活码批量生成、查询、筛选、禁用/启用、软删除和强制删除。
+- 天卡、两天卡、三天卡、周卡、月卡、季卡、年卡、永久卡等套餐。
 - 客户端获取应用信息、激活、校验和自助解绑迁移。
+- 分销商取码接口（自动发货系统按应用/套餐取走未售出卡密）。
 - 管理员登录、JWT 会话、密码修改和 bootstrap 密钥恢复。
 - 租户隔离、超级管理员租户管理和租户管理员业务后台。
 - 管理后台统计、操作日志、接入文档、SDK 示例和 Playground。
@@ -71,7 +72,7 @@
 
 | 维度 | 字段 | 含义 |
 | --- | --- | --- |
-| 生命周期 | `status` | `unused`、`active`、`deleted` |
+| 生命周期 | `status` | `unused`、`issued`、`active`、`deleted` |
 | 管理开关 | `disabled_at` | 非空表示管理员禁用 |
 | 时间有效性 | `expires_at` | `active` 且 `expires_at <= now` 表示过期 |
 | 设备绑定 | `device_hash` | `active` 时非空表示已绑定，空表示等待重新绑定 |
@@ -79,11 +80,15 @@
 持久化生命周期只允许：
 
 ```text
+unused -> issued -> active -> deleted
 unused -> active -> deleted
-unused ----------> deleted
+unused -----------> deleted
+issued -----------> deleted
 ```
 
 禁止 `active -> unused`、`deleted -> active` 和 `deleted -> unused`。
+
+`issued`（已售出）由分销商取码接口（`GET /api/distributor/claim`）产生：分销商每次取走一张 `unused` 激活码，状态变为 `issued`，之后买家仍可正常激活（`issued -> active`），不会被重复发放。未配置明文加密密钥时，`unused` 激活码无法被取走（无加密明文）。并发取码时若与其它请求争抢同一张码，会自动重试下一张（最多 3 次），库存充足时不会误报 `NO_CODE_AVAILABLE`。
 
 管理后台展示状态按以下优先级计算，避免一个激活码同时显示多个主状态：
 
@@ -91,7 +96,8 @@ unused ----------> deleted
 2. `disabled_at IS NOT NULL` -> `disabled`
 3. `status = active AND expires_at <= now` -> `expired`
 4. `status = active` -> `active`
-5. 其他 -> `unused`
+5. `status = issued` -> `issued`
+6. 其他 -> `unused`
 
 “已解绑待重绑”不是独立主状态，而是 `status = active`、未过期、`device_hash IS NULL` 的绑定子状态。
 
@@ -154,7 +160,7 @@ unused ----------> deleted
 - 创建应用时生成 `app_id` 和 `app_secret`；仅明文密钥一次性返回。
 - 禁用应用后，客户端获取应用信息、激活、校验和解绑均失败。
 - 更换密钥后旧密钥立即失效，新密钥一次性返回，并记录 `rotate_app_secret`。
-- 只有不存在激活码、生成批次和操作日志引用时才能物理删除应用；已有授权数据的应用应禁用。
+- 仅当应用下所有激活码均处于 `deleted` 状态时才能物理删除应用；删除会彻底移除该应用及其激活码、生成批次、版本和操作日志，不可恢复。仍存在未删除激活码的应用应禁用而非删除。
 
 ### 激活码
 

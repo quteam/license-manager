@@ -21,11 +21,13 @@
 | `FRONTEND.md` | 页面结构、路由、组件、UI、i18n 和前端安全 | Worker 业务实现 |
 | `DEVELOPMENT.md` | 环境、命令、测试策略和开发闭环 | 生产发布操作 |
 | `DEPLOYMENT.md` | Cloudflare、D1、Wrangler secret 和发布检查 | 日常编码规范 |
+| `EDGEONE_DEPLOYMENT.md` | EdgeOne Pages（云函数 + Blob）部署：按钮、环境变量、语义差异 | EdgeOne 相关任务 |
+| `INTEGRATION_PROMPT.md` | 客户端软件接入本授权系统的任务提示词（激活、校验、解绑、设备指纹、购买引导） | 具体接口契约和页面布局 |
+| `API_VERSIONS.md` | 版本控制接口：版本 CRUD、发布/下架、强制更新、客户端查询 | 其他接口契约 |
 
 根目录通用文档：
 
-- `README.md`：英文默认项目介绍、快速开始和部署入口。
-- `README.zh-CN.md`：中文项目介绍、快速开始和部署入口。
+- `README.md`：项目介绍、快速开始和部署入口（简体中文默认，含英文版）。
 - `CONTRIBUTING.md`：面向外部贡献者的协作流程。
 - `SECURITY.md`：漏洞私下报告方式和泄露后处理建议。
 - `LICENSE`：开源许可证。

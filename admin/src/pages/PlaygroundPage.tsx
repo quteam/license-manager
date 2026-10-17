@@ -20,6 +20,7 @@ type PlaygroundValues = {
   app_secret: string;
   code?: string;
   device_fingerprint?: string;
+  current_version_code?: string;
 };
 
 export function PlaygroundPage() {
@@ -115,16 +116,31 @@ export function PlaygroundPage() {
               rules={[{ required: true, message: t("playground.appSecretRequired") }]}
             />
             <ProFormDependency name={["action"]}>
-              {({ action }) => action === "app-info" ? null : (
-                <>
-                  <ProFormText name="code" label={t("playground.code")} rules={[{ required: true, message: t("playground.codeRequired") }]} />
-                  <ProFormText
-                    name="device_fingerprint"
-                    label={action === "unbind" ? t("playground.currentDeviceFingerprint") : t("playground.deviceFingerprint")}
-                    rules={[{ required: true, message: t("playground.deviceFingerprintRequired") }]}
-                  />
-                </>
-              )}
+              {({ action }) => {
+                if (action === "app-info") {
+                  return null;
+                }
+                if (action === "versions-latest") {
+                  return (
+                    <ProFormText
+                      name="current_version_code"
+                      label={t("playground.versionCode")}
+                      fieldProps={{ inputMode: "numeric" }}
+                      rules={[{ required: true, message: t("playground.versionCodeRequired") }]}
+                    />
+                  );
+                }
+                return (
+                  <>
+                    <ProFormText name="code" label={t("playground.code")} rules={[{ required: true, message: t("playground.codeRequired") }]} />
+                    <ProFormText
+                      name="device_fingerprint"
+                      label={action === "unbind" ? t("playground.currentDeviceFingerprint") : t("playground.deviceFingerprint")}
+                      rules={[{ required: true, message: t("playground.deviceFingerprintRequired") }]}
+                    />
+                  </>
+                );
+              }}
             </ProFormDependency>
           </ProForm>
         </Space>
@@ -160,7 +176,9 @@ function buildPlaygroundBody(values: PlaygroundValues) {
     app_id: values.app_id,
     app_secret: values.app_secret
   };
-  if (values.action !== "app-info") {
+  if (values.action === "versions-latest") {
+    body.current_version_code = values.current_version_code ?? "";
+  } else if (values.action !== "app-info") {
     body.code = values.code ?? "";
     body.device_fingerprint = values.device_fingerprint ?? "";
   }

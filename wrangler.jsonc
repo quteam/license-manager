@@ -1,0 +1,30 @@
+/**
+ * 仓库根目录 Wrangler 配置 —— 本地开发与「Deploy to Cloudflare」一键部署共用。
+ * 按钮只读取仓库根目录的 Wrangler 配置，并把整个仓库克隆到部署者账号后按此配置供给 D1、构建并发布；
+ * 本地 wrangler dev / d1 命令同样通过配置向上查找使用本文件，本地密钥读取根目录 .dev.vars。
+ * 生产部署使用私有的 worker/wrangler.production.toml；修改入口、绑定或资源名称时两处必须同步。
+ */
+{
+  "name": "license-manager",
+  "main": "worker/src/index.ts",
+  "compatibility_date": "2026-06-16",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "directory": "admin/dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*"]
+  },
+  // D1 由一键部署流程自动供给并回填真实 database_id；本地开发使用该占位 ID（与生产库无关）
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "license_manager",
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "vars": {
+    "ADMIN_BOOTSTRAP_USERNAME": "admin"
+  }
+}

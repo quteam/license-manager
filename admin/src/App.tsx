@@ -2,7 +2,7 @@ import { App as AntApp, ConfigProvider } from "antd";
 import enUS from "antd/locale/en_US";
 import zhCN from "antd/locale/zh_CN";
 import { lazy, Suspense, useEffect, useState } from "react";
-import { clearToken, getToken, setTenantId, setToken, apiRequest } from "./api";
+import { clearSession, clearToken, getToken, setTenantId, setToken, apiRequest } from "./api";
 import { LanguageProvider, useI18n } from "./i18n";
 import type { AdminUser } from "./types";
 
@@ -42,7 +42,8 @@ function LocalizedApp() {
         }
       })
       .catch(() => {
-        clearToken();
+        // 会话失效只清凭证，保留租户选择，重新登录后回到同一租户
+        clearSession();
         updateToken(null);
       });
   }, [token]);

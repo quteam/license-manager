@@ -11,7 +11,10 @@ import {
   LogResult,
   PlanRow,
   TenantRow,
-  TenantStatus
+  TenantStatus,
+  VersionListItem,
+  VersionRow,
+  VersionStatus
 } from "./types";
 
 type SqlValue = string | number | null;
@@ -35,6 +38,34 @@ export type LogListFilters = {
   pageSize: number;
 };
 
+export type VersionListFilters = {
+  tenantId: number;
+  appId?: string;
+  version?: string;
+  status?: VersionStatus;
+  page: number;
+  pageSize: number;
+};
+
+export type CreateVersionInput = {
+  appDbId: number;
+  version: string;
+  versionCode: number;
+  releaseNotes: string;
+  downloadUrl?: string;
+  isForced: boolean;
+  createdBy: number;
+};
+
+export type UpdateVersionInput = {
+  versionId: number;
+  version: string;
+  versionCode: number;
+  releaseNotes: string;
+  downloadUrl?: string;
+  isForced: boolean;
+};
+
 export type ActivationCodeInsertInput = {
   batchId: number;
   appDbId: number;
@@ -42,6 +73,8 @@ export type ActivationCodeInsertInput = {
   codeHash: string;
   codeSuffix: string;
   createdBy: number;
+  /** AES-GCM 加密后的激活码明文；未配置加密密钥时为 null */
+  codePlaintextEncrypted?: string | null;
 };
 
 export class Repository {
@@ -236,18 +269,27 @@ export class Repository {
     return await this.getAppByPublicId(appId, tenantId);
   }
 
-  async deleteAppIfUnreferenced(appDbId: number): Promise<boolean> {
-    const result = await this.db
-      .prepare(
-        `DELETE FROM apps
-         WHERE id = ?
-           AND NOT EXISTS (SELECT 1 FROM activation_batches WHERE app_id = ?)
-           AND NOT EXISTS (SELECT 1 FROM activation_codes WHERE app_id = ?)
-           AND NOT EXISTS (SELECT 1 FROM activation_logs WHERE app_id = ?)`
-      )
-      .bind(appDbId, appDbId, appDbId, appDbId)
-      .run();
-    return result.meta.changes === 1;
+  async deleteAppWithData(appDbId: number): Promise<boolean> {
+    const pending = await this.db
+      .prepare("SELECT COUNT(*) AS total FROM activation_codes WHERE app_id = ? AND status != 'deleted'")
+      .bind(appDbId)
+      .first<{ total: number }>();
+    if ((pending?.total ?? 0) > 0) {
+      return false;
+    }
+    const result = await this.db.batch([
+      this.db
+        .prepare(
+          "DELETE FROM activation_logs WHERE app_id = ? OR code_id IN (SELECT id FROM activation_codes WHERE app_id = ?)"
+        )
+        .bind(appDbId, appDbId),
+      this.db.prepare("DELETE FROM activation_codes WHERE app_id = ?").bind(appDbId),
+      this.db.prepare("DELETE FROM activation_batches WHERE app_id = ?").bind(appDbId),
+      this.db.prepare("DELETE FROM versions WHERE app_id = ?").bind(appDbId),
+      this.db.prepare("DELETE FROM apps WHERE id = ?").bind(appDbId)
+    ]);
+    const last = result[result.length - 1] as { meta: { changes: number } } | undefined;
+    return last?.meta.changes === 1;
   }
 
   async getAppByPublicId(appId: string, tenantId?: number): Promise<AppRow | null> {
@@ -311,8 +353,13 @@ export class Repository {
       return;
     }
     const updatedAt = new Date().toISOString();
-    const statement = buildActivationCodeInsertStatement(inputs);
-    await this.db.prepare(statement.sql).bind(...statement.bindings).run();
+    // D1 单条语句绑定参数上限为 100（每条记录 8 个参数），按每批 10 条分批写入，留足安全余量
+    const CHUNK_SIZE = 10;
+    for (let i = 0; i < inputs.length; i += CHUNK_SIZE) {
+      const chunk = inputs.slice(i, i + CHUNK_SIZE);
+      const statement = buildActivationCodeInsertStatement(chunk, updatedAt);
+      await this.db.prepare(statement.sql).bind(...statement.bindings).run();
+    }
   }
 
   async findCodeByHash(codeHash: string): Promise<CodeDetailRow | null> {
@@ -336,6 +383,64 @@ export class Repository {
       .first<CodeDetailRow>();
   }
 
+  /**
+   * 分销商取码：原子取走指定应用（可限定套餐）最早一张「未售出且含加密明文」的激活码，置为 issued。
+   * 并发安全：UPDATE 时再次校验 status='unused'，被并发抢先则返回 null（调用方可重试）。
+   */
+  async claimNextCode(input: {
+    appDbId: number;
+    tenantId: number;
+    planCode?: string;
+  }): Promise<{
+    codeId: number;
+    codeHash: string;
+    codeSuffix: string;
+    planCode: string;
+    planName: string;
+    encrypted: string;
+  } | null> {
+    const now = new Date().toISOString();
+    const baseSql = `
+        SELECT c.id, c.code_hash, c.code_suffix, p.code AS plan_code, p.name AS plan_name, c.code_plaintext_encrypted AS encrypted
+        FROM activation_codes c
+        JOIN apps a ON a.id = c.app_id
+        JOIN plans p ON p.id = c.plan_id
+        WHERE a.tenant_id = ?
+          AND c.app_id = ?
+          AND c.status = 'unused'
+          AND c.code_plaintext_encrypted IS NOT NULL`;
+    const planClause = input.planCode ? " AND p.code = ?" : "";
+    const bindings = input.planCode
+      ? [input.tenantId, input.appDbId, input.planCode]
+      : [input.tenantId, input.appDbId];
+    const candidate = await this.db
+      .prepare(`${baseSql}${planClause} ORDER BY c.id ASC LIMIT 1`)
+      .bind(...bindings)
+      .first<{ id: number; code_hash: string; code_suffix: string; plan_code: string; plan_name: string; encrypted: string | null }>();
+    if (!candidate || !candidate.encrypted) {
+      return null;
+    }
+    const updated = await this.db
+      .prepare(
+        `UPDATE activation_codes
+         SET status = 'issued', issued_at = ?, updated_at = ?
+         WHERE id = ? AND status = 'unused'`
+      )
+      .bind(now, now, candidate.id)
+      .run();
+    if (updated.meta.changes !== 1) {
+      return null;
+    }
+    return {
+      codeId: candidate.id,
+      codeHash: candidate.code_hash,
+      codeSuffix: candidate.code_suffix,
+      planCode: candidate.plan_code,
+      planName: candidate.plan_name,
+      encrypted: candidate.encrypted
+    };
+  }
+
   async activateCode(input: {
     codeId: number;
     deviceHash: string;
@@ -351,7 +456,7 @@ export class Repository {
              device_hash = ?,
              updated_at = ?
          WHERE id = ?
-           AND status = 'unused'
+           AND status IN ('unused', 'issued')
            AND disabled_at IS NULL
            AND activated_at IS NULL
            AND expires_at IS NULL
@@ -430,6 +535,33 @@ export class Repository {
       .bind(new Date().toISOString(), codeId, tenantId)
       .run();
     return result.meta.changes === 1;
+  }
+
+  async getCodeById(codeId: number, tenantId: number): Promise<CodeDetailRow | null> {
+    return await this.db
+      .prepare(
+        `SELECT c.*, a.app_id AS app_public_id, a.name AS app_name, a.platform AS app_platform, a.status AS app_status,
+                p.code AS plan_code, p.name AS plan_name, p.duration_days
+         FROM activation_codes c
+         JOIN apps a ON a.id = c.app_id
+         JOIN plans p ON p.id = c.plan_id
+         WHERE c.id = ? AND a.tenant_id = ?`
+      )
+      .bind(codeId, tenantId)
+      .first<CodeDetailRow>();
+  }
+
+  async hardDeleteCode(codeId: number, tenantId: number): Promise<boolean> {
+    const result = await this.db.batch([
+      this.db.prepare("UPDATE activation_logs SET code_id = NULL WHERE code_id = ?").bind(codeId),
+      this.db
+        .prepare(
+          "DELETE FROM activation_codes WHERE id = ? AND app_id IN (SELECT id FROM apps WHERE tenant_id = ?)"
+        )
+        .bind(codeId, tenantId)
+    ]);
+    const last = result[result.length - 1] as { meta: { changes: number } } | undefined;
+    return last?.meta.changes === 1;
   }
 
   async updateCodeDisabled(input: { codeId: number; tenantId: number; disabled: boolean; changedAt: string }): Promise<boolean> {
@@ -574,6 +706,180 @@ export class Repository {
       items: result.results ?? [],
       total: count?.total ?? 0
     };
+  }
+
+  async listVersions(filters: VersionListFilters): Promise<{ items: VersionListItem[]; total: number }> {
+    const where: string[] = ["a.tenant_id = ?", "v.deleted_at IS NULL"];
+    const bindings: SqlValue[] = [filters.tenantId];
+
+    if (filters.appId) {
+      where.push("a.app_id = ?");
+      bindings.push(filters.appId);
+    }
+    if (filters.version) {
+      where.push("v.version LIKE ?");
+      bindings.push(`%${filters.version}%`);
+    }
+    if (filters.status) {
+      where.push("v.status = ?");
+      bindings.push(filters.status);
+    }
+
+    const whereSql = where.length > 0 ? `WHERE ${where.join(" AND ")}` : "";
+    const baseFrom = `
+      FROM versions v
+      JOIN apps a ON a.id = v.app_id
+      ${whereSql}
+    `;
+    const offset = (filters.page - 1) * filters.pageSize;
+    const [count, result] = await Promise.all([
+      this.db
+        .prepare(`SELECT COUNT(*) AS total ${baseFrom}`)
+        .bind(...bindings)
+        .first<{ total: number }>(),
+      this.db
+        .prepare(
+          `SELECT
+             v.id,
+             v.app_id,
+             v.version,
+             v.version_code,
+             v.release_notes,
+             v.download_url,
+             v.is_forced,
+             v.status,
+             v.published_at,
+             v.created_by,
+             v.created_at,
+             v.updated_at,
+             a.app_id AS app_public_id,
+             a.name AS app_name,
+             a.tenant_id
+           ${baseFrom}
+           ORDER BY v.created_at DESC
+           LIMIT ? OFFSET ?`
+        )
+        .bind(...bindings, filters.pageSize, offset)
+        .all<VersionListItem>()
+    ]);
+    return {
+      items: result.results ?? [],
+      total: count?.total ?? 0
+    };
+  }
+
+  async getVersionById(versionId: number): Promise<VersionRow | null> {
+    return await this.db
+      .prepare("SELECT * FROM versions WHERE id = ? AND deleted_at IS NULL")
+      .bind(versionId)
+      .first<VersionRow>();
+  }
+
+  async getVersionWithTenant(versionId: number): Promise<(VersionRow & { tenant_id: number }) | null> {
+    return await this.db
+      .prepare(
+        `SELECT v.*, a.tenant_id
+         FROM versions v
+         JOIN apps a ON a.id = v.app_id
+         WHERE v.id = ? AND v.deleted_at IS NULL`
+      )
+      .bind(versionId)
+      .first<VersionRow & { tenant_id: number }>();
+  }
+
+  async getVersionByAppAndCode(appDbId: number, versionCode: number): Promise<VersionRow | null> {
+    return await this.db
+      .prepare("SELECT * FROM versions WHERE app_id = ? AND version_code = ? AND deleted_at IS NULL")
+      .bind(appDbId, versionCode)
+      .first<VersionRow>();
+  }
+
+  async createVersion(input: CreateVersionInput): Promise<VersionRow> {
+    await this.db
+      .prepare(
+        `INSERT INTO versions (app_id, version, version_code, release_notes, download_url, is_forced, status, created_by, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, 'draft', ?, ?)`
+      )
+      .bind(
+        input.appDbId,
+        input.version,
+        input.versionCode,
+        input.releaseNotes,
+        input.downloadUrl ?? "",
+        input.isForced ? 1 : 0,
+        input.createdBy,
+        new Date().toISOString()
+      )
+      .run();
+    const version = await this.db
+      .prepare("SELECT * FROM versions WHERE app_id = ? AND version_code = ? AND deleted_at IS NULL ORDER BY id DESC LIMIT 1")
+      .bind(input.appDbId, input.versionCode)
+      .first<VersionRow>();
+    if (!version) {
+      throw new Error("Failed to create version");
+    }
+    return version;
+  }
+
+  async updateVersion(input: UpdateVersionInput): Promise<VersionRow | null> {
+    const result = await this.db
+      .prepare(
+        `UPDATE versions SET version = ?, version_code = ?, release_notes = ?, download_url = ?, is_forced = ?, updated_at = ?
+         WHERE id = ? AND deleted_at IS NULL`
+      )
+      .bind(
+        input.version,
+        input.versionCode,
+        input.releaseNotes,
+        input.downloadUrl ?? "",
+        input.isForced ? 1 : 0,
+        new Date().toISOString(),
+        input.versionId
+      )
+      .run();
+    if (result.meta.changes !== 1) {
+      return null;
+    }
+    return await this.getVersionById(input.versionId);
+  }
+
+  async publishVersion(versionId: number, publishedAt: string): Promise<boolean> {
+    const result = await this.db
+      .prepare(
+        `UPDATE versions SET status = 'published', published_at = ?, updated_at = ?
+         WHERE id = ? AND status = 'draft' AND deleted_at IS NULL`
+      )
+      .bind(publishedAt, new Date().toISOString(), versionId)
+      .run();
+    return result.meta.changes === 1;
+  }
+
+  async unpublishVersion(versionId: number): Promise<boolean> {
+    const result = await this.db
+      .prepare(
+        `UPDATE versions SET status = 'draft', published_at = NULL, updated_at = ?
+         WHERE id = ? AND status = 'published' AND deleted_at IS NULL`
+      )
+      .bind(new Date().toISOString(), versionId)
+      .run();
+    return result.meta.changes === 1;
+  }
+
+  async softDeleteVersion(versionId: number): Promise<boolean> {
+    const result = await this.db
+      .prepare("UPDATE versions SET deleted_at = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL")
+      .bind(new Date().toISOString(), new Date().toISOString(), versionId)
+      .run();
+    return result.meta.changes === 1;
+  }
+
+  async getLatestPublishedVersion(appDbId: number): Promise<VersionRow | null> {
+    return await this.db
+      .prepare(
+        "SELECT * FROM versions WHERE app_id = ? AND status = 'published' AND deleted_at IS NULL ORDER BY version_code DESC LIMIT 1"
+      )
+      .bind(appDbId)
+      .first<VersionRow>();
   }
 
   async getDashboardStats(tenantId: number): Promise<DashboardStats> {
@@ -981,10 +1287,10 @@ export function buildActivationCodeInsertStatement(
   sql: string;
   bindings: SqlValue[];
 } {
-  const rows = inputs.map(() => "(?, ?, ?, ?, ?, 'unused', NULL, NULL, NULL, ?, ?)").join(", ");
+  const rows = inputs.map(() => "(?, ?, ?, ?, ?, 'unused', NULL, NULL, NULL, ?, ?, ?)").join(", ");
   return {
     sql: `INSERT INTO activation_codes
-       (batch_id, app_id, plan_id, code_hash, code_suffix, status, activated_at, expires_at, device_hash, created_by, updated_at)
+       (batch_id, app_id, plan_id, code_hash, code_suffix, status, activated_at, expires_at, device_hash, created_by, updated_at, code_plaintext_encrypted)
      VALUES ${rows}`,
     bindings: inputs.flatMap((input) => [
       input.batchId,
@@ -993,7 +1299,8 @@ export function buildActivationCodeInsertStatement(
       input.codeHash,
       input.codeSuffix,
       input.createdBy,
-      updatedAt
+      updatedAt,
+      input.codePlaintextEncrypted ?? null
     ])
   };
 }
